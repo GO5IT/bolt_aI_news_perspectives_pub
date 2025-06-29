@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Search, Sparkles, User } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
+
 // Import the API key from environment variables and check if it exists
 const groqApiKey = Constants?.expoConfig?.extra?.GROQ_API_KEY ?? '';
 
@@ -17,6 +18,11 @@ async function groqResponse(
   stop: null,
   stream: boolean
 ) {
+  // Check if API key is available
+  if (!groqApiKey || groqApiKey.trim() === '') {
+    throw new Error('GROQ_API_KEY is not set. Please set your Groq API key as an environment variable.');
+  }
+
   const concatenatedTriviaQuizAssistant = `
     You are a creative writer API capable to generating a JSON data about articles about real news from the BBC website. The articles should be created as if it was written by the (historical) person specified by the user. The user input includes the name of the person and a list of news websites. Your output should be a list, containing objects about the generated articles. Respond ONLY with valid JSON. Use double quotes for all keys and string values.
     [  
@@ -51,7 +57,12 @@ async function groqResponse(
     })
   });
 
-  if (!response.ok) throw new Error('Groq API error');
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Groq API Error:', response.status, errorText);
+    throw new Error(`Groq API error: ${response.status} - ${errorText}`);
+  }
+  
   const data = await response.json();
   return [aiModel, data.choices[0].message.content];
 }
@@ -59,6 +70,7 @@ async function groqResponse(
 export default function HomeScreen() {
   const [personName, setPersonName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleSubmit = async () => {
@@ -67,7 +79,14 @@ export default function HomeScreen() {
       return;
     }
 
+    // Check if API key is available before making the request
+    if (!groqApiKey || groqApiKey.trim() === '') {
+      setError('GROQ_API_KEY is not configured. Please set your Groq API key as an environment variable and restart the app.');
+      return;
+    }
+
     setIsLoading(true);
+    setError(null);
 
     // Prepare Groq API parameters
     const temperature = 0.5;
@@ -110,29 +129,11 @@ export default function HomeScreen() {
       });
     } catch (error) {
       setIsLoading(false);
-      Alert.alert('Error fetching AI response');
-      console.error(error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setError(errorMessage);
+      console.error('Error:', error);
     }
   };
-
-  // const handleSubmit = async () => {
-  //   if (!personName.trim()) {
-  //     Alert.alert('Please enter a famous person\'s name');
-  //     return;
-  //   }
-
-  //   setIsLoading(true);
-    
-  //   // Simulate API call to identify person and fetch news
-  //   setTimeout(() => {
-  //     setIsLoading(false);
-  //     // Navigate to news with the person parameter
-  //     router.push({
-  //       pathname: '/news',
-  //       params: { person: personName.trim() }
-  //     });
-  //   }, 2000);
-  // };
 
   const famousPersons = [
     'Albert Einstein', 'Oprah Winfrey', 'Elon Musk', 'Maya Angelou',
@@ -155,6 +156,19 @@ export default function HomeScreen() {
       </LinearGradient>
 
       <View style={styles.content}>
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorTitle}>Configuration Error</Text>
+            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorInstructions}>
+              To fix this issue:{'\n'}
+              1. Get a Groq API key from https://console.groq.com{'\n'}
+              2. Set it as an environment variable: GROQ_API_KEY=your_key_here{'\n'}
+              3. Restart the app
+            </Text>
+          </View>
+        )}
+
         <View style={styles.formSection}>
           <Text style={styles.sectionTitle}>Choose Your Perspective</Text>
           <Text style={styles.sectionSubtitle}>
@@ -270,6 +284,35 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+  },
+  errorContainer: {
+    backgroundColor: '#fee',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#dc3545',
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#dc3545',
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#721c24',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  errorInstructions: {
+    fontSize: 13,
+    color: '#721c24',
+    lineHeight: 18,
+    fontFamily: 'monospace',
+    backgroundColor: '#f8d7da',
+    padding: 8,
+    borderRadius: 4,
   },
   formSection: {
     backgroundColor: '#fff',
