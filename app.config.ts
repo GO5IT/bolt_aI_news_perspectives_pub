@@ -8,19 +8,4 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     GROQ_API_KEY: process.env.GROQ_API_KEY,
     RAPIDAPI_KEY: process.env.RAPIDAPI_KEY,
   },
-  plugins: [
-    'expo-router',
-    'expo-font', 
-    'expo-web-browser',
-    [
-      'expo-build-properties',
-      {
-        android: {
-          packagingOptions: {
-            pickFirst: ['**/libc++_shared.so', '**/libjsc.so'],
-          },
-        },
-      },
-    ],
-  ],
 });

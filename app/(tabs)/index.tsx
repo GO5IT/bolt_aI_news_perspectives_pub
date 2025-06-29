@@ -7,15 +7,8 @@ import Constants from 'expo-constants';
 
 const { width } = Dimensions.get('window');
 
-// Import the API key from environment variables using the proper Expo method
-const groqApiKey = Constants.expoConfig?.extra?.GROQ_API_KEY || process.env.EXPO_PUBLIC_GROQ_API_KEY || '';
-
-console.log('Environment check:', {
-  hasGroqKey: !!groqApiKey,
-  keyLength: groqApiKey?.length || 0,
-  expoConfigExtra: Constants.expoConfig?.extra,
-  processEnv: process.env.EXPO_PUBLIC_GROQ_API_KEY ? 'Found EXPO_PUBLIC_GROQ_API_KEY' : 'No EXPO_PUBLIC_GROQ_API_KEY'
-});
+// Import the API key from environment variables and check if it exists
+const groqApiKey = Constants?.expoConfig?.extra?.GROQ_API_KEY ?? '';
 
 // Remove finalLangCodeId parameter
 async function groqResponse(
@@ -29,7 +22,7 @@ async function groqResponse(
 ) {
   // Check if API key is available
   if (!groqApiKey || groqApiKey.trim() === '') {
-    throw new Error('GROQ_API_KEY is not configured. Please check your .env file and restart the development server.');
+    throw new Error('GROQ_API_KEY is not set. Please check your environment configuration.');
   }
 
   const concatenatedTriviaQuizAssistant = `
@@ -90,7 +83,7 @@ export default function HomeScreen() {
 
     // Check if API key is available before making the request
     if (!groqApiKey || groqApiKey.trim() === '') {
-      setError('GROQ_API_KEY is not configured. Please add it to your .env file as either GROQ_API_KEY or EXPO_PUBLIC_GROQ_API_KEY and restart the development server.');
+      setError('GROQ_API_KEY is not configured. Please check your .env file and restart the development server.');
       return;
     }
 
@@ -204,25 +197,10 @@ export default function HomeScreen() {
               <Text style={styles.errorInstructionsTitle}>Quick Setup:</Text>
               <Text style={styles.errorInstructions}>
                 1. Create a .env file in your project root{'\n'}
-                2. Add: EXPO_PUBLIC_GROQ_API_KEY=your_api_key_here{'\n'}
+                2. Add: GROQ_API_KEY=your_api_key_here{'\n'}
                 3. Get your API key from https://console.groq.com{'\n'}
                 4. Restart the development server (npm run dev)
               </Text>
-            </View>
-          </View>
-        )}
-
-        {!groqApiKey && (
-          <View style={styles.setupContainer}>
-            <Text style={styles.setupTitle}>🚀 Setup Required</Text>
-            <Text style={styles.setupText}>
-              To use AI News Perspectives, you need to configure your GROQ API key:
-            </Text>
-            <View style={styles.setupStepsContainer}>
-              <Text style={styles.setupStep}>1. Visit https://console.groq.com</Text>
-              <Text style={styles.setupStep}>2. Create an account and get your API key</Text>
-              <Text style={styles.setupStep}>3. Add EXPO_PUBLIC_GROQ_API_KEY=your_key to your .env file</Text>
-              <Text style={styles.setupStep}>4. Restart the development server</Text>
             </View>
           </View>
         )}
@@ -250,12 +228,12 @@ export default function HomeScreen() {
           </View>
 
           <TouchableOpacity
-            style={[styles.submitButton, (isLoading || !groqApiKey) && styles.submitButtonDisabled]}
+            style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
             onPress={handleSubmit}
-            disabled={isLoading || !groqApiKey}
+            disabled={isLoading}
           >
             <LinearGradient
-              colors={(isLoading || !groqApiKey) ? ['#9CA3AF', '#6B7280'] : ['#BB1919', '#8B0000']}
+              colors={isLoading ? ['#9CA3AF', '#6B7280'] : ['#BB1919', '#8B0000']}
               style={styles.submitButtonGradient}
             >
               {isLoading ? (
@@ -266,9 +244,7 @@ export default function HomeScreen() {
               ) : (
                 <>
                   <Search size={20} color="#fff" />
-                  <Text style={styles.submitButtonText}>
-                    {!groqApiKey ? 'Setup Required' : 'Generate AI Perspectives'}
-                  </Text>
+                  <Text style={styles.submitButtonText}>Generate AI Perspectives</Text>
                 </>
               )}
             </LinearGradient>
@@ -299,9 +275,9 @@ export default function HomeScreen() {
             {famousPersons.map((person, index) => (
               <TouchableOpacity
                 key={index}
-                style={[styles.suggestionChip, (!groqApiKey || isLoading) && styles.suggestionChipDisabled]}
+                style={styles.suggestionChip}
                 onPress={() => setPersonName(person.name)}
-                disabled={isLoading || !groqApiKey}
+                disabled={isLoading}
               >
                 <Text style={styles.suggestionName}>{person.name}</Text>
                 <Text style={styles.suggestionField}>{person.field}</Text>
@@ -438,37 +414,6 @@ const styles = StyleSheet.create({
     color: '#991B1B',
     lineHeight: 20,
     fontFamily: 'monospace',
-  },
-  setupContainer: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  setupTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1E40AF',
-    marginBottom: 8,
-  },
-  setupText: {
-    fontSize: 15,
-    color: '#1E3A8A',
-    marginBottom: 16,
-    lineHeight: 22,
-  },
-  setupStepsContainer: {
-    backgroundColor: '#DBEAFE',
-    borderRadius: 12,
-    padding: 16,
-  },
-  setupStep: {
-    fontSize: 13,
-    color: '#1E3A8A',
-    lineHeight: 20,
-    marginBottom: 4,
   },
   formSection: {
     backgroundColor: '#fff',
@@ -636,9 +581,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     minWidth: (width - 96) / 2,
-  },
-  suggestionChipDisabled: {
-    opacity: 0.5,
   },
   suggestionName: {
     fontSize: 15,

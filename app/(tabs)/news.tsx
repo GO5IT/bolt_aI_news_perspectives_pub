@@ -1,9 +1,9 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, Dimensions } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Clock, User, ExternalLink, Sparkles, ArrowLeft } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { fetchNewsArticles, mapApiArticleToNewsArticle } from '../lib/newsAPI';
+import { fetchNewsArticles, mapApiArticleToNewsArticle } from './newsAPI';
 
 const { width } = Dimensions.get('window');
 
@@ -29,24 +29,15 @@ interface NewsArticle {
 export default function NewsScreen() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedPerson, setSelectedPerson] = useState('');
   const router = useRouter();
   const params = useLocalSearchParams();
-  const isMountedRef = useRef(true);
-  
-  // Derive selectedPerson directly from params instead of using state
-  const selectedPerson = Array.isArray(params.person) ? params.person.join(', ') : (params.person || '');
-
-  // Cleanup function to prevent state updates on unmounted component
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
 
   // Parse AI response or fallback to mock data
   useEffect(() => {
-    if (params.aiResponse && isMountedRef.current) {
+    if (params.person) setSelectedPerson(params.person as string);
+
+    if (params.aiResponse) {
       let aiArticles: NewsArticle[] = [];
       let aiText = String(params.aiResponse).trim();
 
@@ -76,51 +67,33 @@ export default function NewsScreen() {
         aiGenerated: true,
         "Input person name": Array.isArray(a["Input person name"])
           ? a["Input person name"].join(', ')
-          : (a["Input person name"] || selectedPerson || ''),
+          : (a["Input person name"] || (Array.isArray(params.person) ? params.person.join(', ') : params.person) || ''),
       }));
-      
-      if (isMountedRef.current) {
-        setArticles(mapped);
-      }
+      setArticles(mapped);
     }
-  }, [params.aiResponse, selectedPerson]);
+  }, [params.aiResponse, params.person]);
 
   useEffect(() => {
     // Only fetch real news if there is NO aiResponse
-    if (!params.aiResponse && isMountedRef.current) {
+    if (!params.aiResponse) {
       async function loadRealNews() {
-        try {
-          const apiArticles = await fetchNewsArticles(
-            "TECHNOLOGY", // or your chosen topic
-            "CAQiSkNCQVNNUW9JTDIwdk1EZGpNWFlTQldWdUxVZENHZ0pKVENJT0NBUWFDZ29JTDIwdk1ETnliSFFxQ2hJSUwyMHZNRE55YkhRb0FBKi4IACoqCAoiJENCQVNGUW9JTDIwdk1EZGpNWFlTQldWdUxVZENHZ0pKVENnQVABUAE", // section
-            10, // limit
-            "US", // country_code
-            "en" // lang
-          );
-          const mapped = apiArticles.map(mapApiArticleToNewsArticle);
-          if (isMountedRef.current) {
-            setArticles(mapped);
-          }
-        } catch (error) {
-          console.error('Error loading news:', error);
-          if (isMountedRef.current) {
-            setArticles([]);
-          }
-        }
+        const apiArticles = await fetchNewsArticles(
+          "TECHNOLOGY", // or your chosen topic
+          "CAQiSkNCQVNNUW9JTDIwdk1EZGpNWFlTQldWdUxVZENHZ0pKVENJT0NBUWFDZ29JTDIwdk1ETnliSFFxQ2hJSUwyMHZNRE55YkhRb0FBKi4IACoqCAoiJENCQVNGUW9JTDIwdk1EZGpNWFlTQldWdUxVZENHZ0pKVENnQVABUAE", // section
+          10, // limit
+          "US", // country_code
+          "en" // lang
+        );
+        const mapped = apiArticles.map(mapApiArticleToNewsArticle);
+        setArticles(mapped);
       }
       loadRealNews();
     }
   }, [params.aiResponse]);
 
   const onRefresh = () => {
-    if (isMountedRef.current) {
-      setRefreshing(true);
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          setRefreshing(false);
-        }
-      }, 1000);
-    }
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 1000);
   };
 
   const handleArticlePress = (article: NewsArticle) => {
