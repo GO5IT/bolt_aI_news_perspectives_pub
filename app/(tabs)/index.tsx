@@ -36,7 +36,6 @@ async function fetchRealNews() {
       query: 'latest news today',
       country: 'US',
       lang: 'en',
-      source: 'bbc.com',
       time_published: 'anytime',
       limit: 3
     })
@@ -45,13 +44,19 @@ async function fetchRealNews() {
   try {
     const response = await fetch(url, options);
     if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error(`News API returned 404. This may indicate an issue with your RapidAPI subscription or the search parameters. Please check your RapidAPI dashboard and ensure your subscription is active.`);
+      }
+      if (response.status === 429) {
+        throw new Error(`Rate limit exceeded (429). You've reached your RapidAPI quota limit. Please check your RapidAPI dashboard to upgrade your plan or wait for the quota to reset.`);
+      }
       throw new Error(`News API error: ${response.status}`);
     }
     const result = await response.json();
     return result.data || [];
   } catch (error) {
     console.error('Error fetching real news:', error);
-    // Fallback to a different news source if BBC fails
+    // Fallback to a different news source if primary fails
     return await fetchFallbackNews();
   }
 }
@@ -70,6 +75,12 @@ async function fetchFallbackNews() {
   try {
     const response = await fetch(`${url}?topic=WORLD&country=US&lang=en&limit=3`, options);
     if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error(`Fallback News API returned 404. Please verify your RapidAPI subscription includes access to the Real-Time News Data API endpoints.`);
+      }
+      if (response.status === 429) {
+        throw new Error(`Rate limit exceeded on fallback API (429). Your RapidAPI quota has been exhausted. Please upgrade your plan or wait for quota reset.`);
+      }
       throw new Error(`Fallback News API error: ${response.status}`);
     }
     const result = await response.json();
@@ -357,7 +368,10 @@ export default function HomeScreen() {
           <View style={styles.errorContainer}>
             <Text style={styles.errorTitle}>
               {error.includes('temporarily unavailable') ? '⏳ Service Temporarily Unavailable' : 
-               error.includes('RAPIDAPI_KEY') ? '🔑 News API Key Required' : '⚠️ Configuration Required'}
+               error.includes('RAPIDAPI_KEY') ? '🔑 News API Key Required' :
+               error.includes('404') ? '🔍 API Access Issue' :
+               error.includes('429') || error.includes('Rate limit') ? '⏱️ Rate Limit Exceeded' :
+               '⚠️ Configuration Required'}
             </Text>
             <Text style={styles.errorText}>{error}</Text>
             {error.includes('temporarily unavailable') ? (
@@ -366,6 +380,28 @@ export default function HomeScreen() {
                 <Text style={styles.errorInstructions}>
                   The Groq AI service is experiencing high demand or temporary maintenance. This is not an issue with your setup.
                   {'\n\n'}Please try again in a few minutes. The service should be back online shortly.
+                </Text>
+              </View>
+            ) : error.includes('404') ? (
+              <View style={styles.errorInstructionsContainer}>
+                <Text style={styles.errorInstructionsTitle}>API Access Issue (404):</Text>
+                <Text style={styles.errorInstructions}>
+                  1. Check your RapidAPI subscription status{'\n'}
+                  2. Ensure you're subscribed to "Real-Time News Data" API{'\n'}
+                  3. Verify your API key is correct in the .env file{'\n'}
+                  4. Check if your subscription includes the required endpoints{'\n'}
+                  5. Visit your RapidAPI dashboard to confirm access
+                </Text>
+              </View>
+            ) : error.includes('429') || error.includes('Rate limit') ? (
+              <View style={styles.errorInstructionsContainer}>
+                <Text style={styles.errorInstructionsTitle}>Rate Limit Exceeded (429):</Text>
+                <Text style={styles.errorInstructions}>
+                  1. You've reached your RapidAPI quota limit{'\n'}
+                  2. Check your usage in the RapidAPI dashboard{'\n'}
+                  3. Upgrade your plan for higher limits{'\n'}
+                  4. Wait for your quota to reset (usually monthly){'\n'}
+                  5. Consider optimizing your API usage
                 </Text>
               </View>
             ) : error.includes('RAPIDAPI_KEY') ? (
