@@ -45,6 +45,9 @@ export default function NewsScreen() {
         // Clean up the JSON response - remove any markdown formatting
         aiText = aiText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         
+        // Remove control characters (U+0000 through U+001F) that cause JSON parsing errors
+        aiText = aiText.replace(/[\u0000-\u001F]/g, '');
+        
         if (aiText.startsWith('[') || aiText.startsWith('{')) {
           const parsed = JSON.parse(aiText);
           aiArticles = Array.isArray(parsed) ? parsed : [parsed];
