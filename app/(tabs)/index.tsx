@@ -10,6 +10,13 @@ const { width } = Dimensions.get('window');
 // Import the API key from environment variables and check if it exists
 const groqApiKey = Constants?.expoConfig?.extra?.GROQ_API_KEY ?? '';
 
+// Retry configuration
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 2000; // 2 seconds
+
+// Helper function to wait for a specified time
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function groqResponse(
   concatenatedTriviaQuizUser: string,
   aiModel: string,
@@ -88,23 +95,53 @@ async function groqResponse(
     requestBody.tool_choice = "auto";
   }
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${groqApiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestBody)
-  });
+  // Retry logic for handling 503 errors
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${groqApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Groq API Error:', response.status, errorText);
-    throw new Error(`Groq API error: ${response.status} - ${errorText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Groq API Error (Attempt ${attempt}):`, response.status, errorText);
+        
+        // Handle 503 Service Unavailable specifically
+        if (response.status === 503) {
+          if (attempt < MAX_RETRIES) {
+            console.log(`Service temporarily unavailable. Retrying in ${RETRY_DELAY / 1000} seconds... (Attempt ${attempt}/${MAX_RETRIES})`);
+            await wait(RETRY_DELAY * attempt); // Exponential backoff
+            continue; // Retry the request
+          } else {
+            throw new Error(`Groq service is temporarily unavailable. Please try again in a few minutes. (Error: ${response.status} - ${errorText})`);
+          }
+        }
+        
+        // For other errors, throw immediately
+        throw new Error(`Groq API error: ${response.status} - ${errorText}`);
+      }
+      
+      // If successful, return the response
+      const data = await response.json();
+      return [aiModel, data.choices[0].message.content];
+      
+    } catch (error) {
+      // If it's a network error or fetch error, retry
+      if (attempt < MAX_RETRIES && (error instanceof TypeError || error.message.includes('fetch'))) {
+        console.log(`Network error occurred. Retrying in ${RETRY_DELAY / 1000} seconds... (Attempt ${attempt}/${MAX_RETRIES})`);
+        await wait(RETRY_DELAY * attempt);
+        continue;
+      }
+      
+      // If it's the last attempt or a non-retryable error, throw
+      throw error;
+    }
   }
-  
-  const data = await response.json();
-  return [aiModel, data.choices[0].message.content];
 }
 
 export default function HomeScreen() {
@@ -245,17 +282,29 @@ export default function HomeScreen() {
       <View style={styles.content}>
         {error && (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorTitle}>⚠️ Configuration Required</Text>
+            <Text style={styles.errorTitle}>
+              {error.includes('temporarily unavailable') ? '⏳ Service Temporarily Unavailable' : '⚠️ Configuration Required'}
+            </Text>
             <Text style={styles.errorText}>{error}</Text>
-            <View style={styles.errorInstructionsContainer}>
-              <Text style={styles.errorInstructionsTitle}>Quick Setup:</Text>
-              <Text style={styles.errorInstructions}>
-                1. Create a .env file in your project root{'\n'}
-                2. Add: GROQ_API_KEY=your_api_key_here{'\n'}
-                3. Get your API key from https://console.groq.com{'\n'}
-                4. Restart the development server (npm run dev)
-              </Text>
-            </View>
+            {error.includes('temporarily unavailable') ? (
+              <View style={styles.errorInstructionsContainer}>
+                <Text style={styles.errorInstructionsTitle}>What happened?</Text>
+                <Text style={styles.errorInstructions}>
+                  The Groq AI service is experiencing high demand or temporary maintenance. This is not an issue with your setup.
+                  {'\n\n'}Please try again in a few minutes. The service should be back online shortly.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.errorInstructionsContainer}>
+                <Text style={styles.errorInstructionsTitle}>Quick Setup:</Text>
+                <Text style={styles.errorInstructions}>
+                  1. Create a .env file in your project root{'\n'}
+                  2. Add: GROQ_API_KEY=your_api_key_here{'\n'}
+                  3. Get your API key from https://console.groq.com{'\n'}
+                  4. Restart the development server (npm run dev)
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
