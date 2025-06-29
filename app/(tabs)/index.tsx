@@ -10,44 +10,48 @@ const { width } = Dimensions.get('window');
 // Import the API key from environment variables and check if it exists
 const groqApiKey = Constants?.expoConfig?.extra?.GROQ_API_KEY ?? '';
 
-async function groqWebSearchResponse(
-  userPrompt: string,
+async function groqResponse(
+  concatenatedTriviaQuizUser: string,
   aiModel: string,
   temperature: number,
   maxCompletionTokens: number,
-  topP: number
+  topP: number,
+  stop: null,
+  stream: boolean
 ) {
   // Check if API key is available
   if (!groqApiKey || groqApiKey.trim() === '') {
     throw new Error('GROQ_API_KEY is not set. Please check your environment configuration.');
   }
 
-  const systemPrompt = `
-    You are a creative writer API that generates JSON data about articles based on real, current news from the BBC website. 
+  const concatenatedTriviaQuizAssistant = `
+    You are a creative writer API capable of generating JSON data about three articles based on real news from the BBC website (https://www.bbc.com/). 
 
-    INSTRUCTIONS:
-    1. Search for the latest 3 current news stories from BBC News (bbc.com)
-    2. For each story, write a substantial article (300-500 words) as if written by the specified famous person
-    3. Capture their unique voice, perspective, writing style, and worldview
-    4. Include the actual BBC source URL for each story
-    5. Make each article reflect how this person would interpret and discuss the news
+    IMPORTANT INSTRUCTIONS:
+    1. First, search for the latest news on BBC website
+    2. Select exactly 3 different current news stories from BBC
+    3. For each story, write an article as if it were written by the specified famous person
+    4. Each article should be substantial (at least 300-500 words) and capture the person's unique voice, perspective, and writing style
+    5. Include the actual BBC source URL for each story
 
-    OUTPUT FORMAT - Respond ONLY with valid JSON (no other text):
+    Your output should be a JSON array with exactly 3 objects. Respond ONLY with valid JSON (no other text). Use double quotes for all keys and string values.
+
+    Format:
     [  
       {
           "Timestamp": "current date and time when the source news was published",
-          "Input person name": "name of the person",
-          "Generated article": "substantial article written in the person's distinctive voice (300-500 words)",
+          "Input person name": "name of the person (string)",
+          "Generated article": "substantial article written in the person's voice and style (minimum 300 words)",
           "Source URL": "actual BBC URL of the source news story",
           "Original title": "original BBC article title",
-          "News category": "category like Politics, Technology, Health, Science, etc."
+          "News category": "category like Politics, Technology, Health, etc."
       }
     ]
   `;
 
   const messagesFinal = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: userPrompt }
+    { role: 'system', content: concatenatedTriviaQuizAssistant },
+    { role: 'user', content: concatenatedTriviaQuizUser }
   ];
 
   const requestBody = {
@@ -56,29 +60,33 @@ async function groqWebSearchResponse(
     temperature,
     max_completion_tokens: maxCompletionTokens,
     top_p: topP,
-    stream: false,
-    // Enable web search for supported models
-    tools: [
+    stop,
+    stream
+  };
+
+  // Add web search for models that support it
+  if (aiModel.includes('llama') || aiModel.includes('mixtral')) {
+    requestBody.tools = [
       {
         type: "function",
         function: {
           name: "web_search",
-          description: "Search the web for current BBC news information",
+          description: "Search the web for current information",
           parameters: {
             type: "object",
             properties: {
               query: {
                 type: "string",
-                description: "Search query for BBC news"
+                description: "Search query"
               }
             },
             required: ["query"]
           }
         }
       }
-    ],
-    tool_choice: "auto"
-  };
+    ];
+    requestBody.tool_choice = "auto";
+  }
 
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -96,12 +104,6 @@ async function groqWebSearchResponse(
   }
   
   const data = await response.json();
-  
-  // Handle tool calls if present
-  if (data.choices[0].message.tool_calls) {
-    console.log('Web search was performed:', data.choices[0].message.tool_calls);
-  }
-  
   return [aiModel, data.choices[0].message.content];
 }
 
@@ -130,38 +132,41 @@ export default function HomeScreen() {
     const temperature = 0.7;
     const maxCompletionTokens = 4096; // Increased for longer articles
     const topP = 1;
+    const stop = null;
+    const stream = false;
     
-    const userPrompt = `
-      Please search for the latest 3 current news stories from BBC News (bbc.com) and write articles about them as if they were written by ${personName.trim()}.
+    const concatenatedTriviaQuizUser: string = `
+      Please search for the latest 3 news stories from BBC News (https://www.bbc.com/) and write articles about them as if they were written by ${personName.trim()}.
 
       For each article:
-      1. Find a current BBC news story from today or recent days
+      1. Find a current BBC news story
       2. Write a substantial article (300-500 words) in ${personName.trim()}'s distinctive voice and perspective
-      3. Capture their unique writing style, worldview, and way of thinking about current events
+      3. Capture their unique writing style, worldview, and way of thinking
       4. Include the actual BBC source URL
       5. Make sure each article reflects how ${personName.trim()} would interpret and discuss the news
 
-      Focus on current, important news stories from different categories if possible (politics, technology, health, science, world news, etc.).
-      
-      Search specifically on bbc.com for the most recent and relevant news stories.
+      Focus on current, important news stories from different categories if possible (politics, technology, health, science, etc.).
     `;
 
-    // Use a model that supports web search and tools
-    const finalAiModel = "llama-3.1-70b-versatile"; // This model supports web search and tools
+    // Use a model that supports web search
+    // const finalAiModel = "llama-3.1-70b-versatile"; // This model supports web search
+    const finalAiModel = 'compound-beta-mini';
 
     try {
-      const groqOutput = await groqWebSearchResponse(
-        userPrompt,
+      const groqOutput = await groqResponse(
+        concatenatedTriviaQuizUser,
         finalAiModel,
         temperature,
         maxCompletionTokens,
-        topP
+        topP,
+        stop,
+        stream
       );
 
       setIsLoading(false);
 
       // Print the AI response to the console
-      console.log('AI Response with Web Search:', groqOutput[1]);
+      console.log('AI Response:', groqOutput[1]);
 
       router.push({
         pathname: '/news',
@@ -175,41 +180,34 @@ export default function HomeScreen() {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setError(errorMessage);
       console.error('Error:', error);
-      
-      // Show user-friendly error message
-      Alert.alert(
-        'Error',
-        'Failed to generate perspectives. Please check your internet connection and try again.',
-        [{ text: 'OK' }]
-      );
     }
   };
 
   const famousPersons = [
-    { name: 'Albert Einstein', field: 'Physics', description: 'Theoretical physicist' },
-    { name: 'Oprah Winfrey', field: 'Media', description: 'Media mogul & philanthropist' },
-    { name: 'Elon Musk', field: 'Technology', description: 'Tech entrepreneur' },
-    { name: 'Maya Angelou', field: 'Literature', description: 'Poet & civil rights activist' },
-    { name: 'Steve Jobs', field: 'Innovation', description: 'Apple co-founder' },
-    { name: 'Nelson Mandela', field: 'Leadership', description: 'Anti-apartheid leader' },
-    { name: 'Marie Curie', field: 'Science', description: 'Nobel Prize physicist' },
-    { name: 'Winston Churchill', field: 'Politics', description: 'British Prime Minister' },
-    { name: 'Leonardo da Vinci', field: 'Renaissance', description: 'Polymath & artist' },
-    { name: 'Jane Austen', field: 'Literature', description: 'Novelist' },
-    { name: 'Martin Luther King Jr.', field: 'Civil Rights', description: 'Civil rights leader' },
-    { name: 'Nikola Tesla', field: 'Innovation', description: 'Inventor & engineer' }
+    { name: 'Albert Einstein', field: 'Physics' },
+    { name: 'Oprah Winfrey', field: 'Media' },
+    { name: 'Elon Musk', field: 'Technology' },
+    { name: 'Maya Angelou', field: 'Literature' },
+    { name: 'Steve Jobs', field: 'Innovation' },
+    { name: 'Nelson Mandela', field: 'Leadership' },
+    { name: 'Marie Curie', field: 'Science' },
+    { name: 'Winston Churchill', field: 'Politics' },
+    { name: 'Leonardo da Vinci', field: 'Renaissance' },
+    { name: 'Jane Austen', field: 'Literature' },
+    { name: 'Martin Luther King Jr.', field: 'Civil Rights' },
+    { name: 'Nikola Tesla', field: 'Innovation' }
   ];
 
   const features = [
     {
       icon: Brain,
       title: 'AI-Powered Analysis',
-      description: 'Advanced AI with web search transforms real BBC news through unique historical perspectives'
+      description: 'Advanced AI transforms real BBC news through unique historical perspectives'
     },
     {
       icon: Globe,
       title: 'Live BBC News',
-      description: 'Latest stories sourced directly from BBC News website in real-time'
+      description: 'Latest stories sourced directly from BBC News website'
     },
     {
       icon: Zap,
@@ -304,7 +302,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.featuresSection}>
-          <Text style={styles.featuresTitle}>How It Works</Text>
+          <Text style={styles.featuresTitle}>Why AI Perspectives?</Text>
           <View style={styles.featuresGrid}>
             {features.map((feature, index) => (
               <View key={index} style={styles.featureCard}>
@@ -333,14 +331,13 @@ export default function HomeScreen() {
               >
                 <Text style={styles.suggestionName}>{person.name}</Text>
                 <Text style={styles.suggestionField}>{person.field}</Text>
-                <Text style={styles.suggestionDescription}>{person.description}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
         <View style={styles.infoSection}>
-          <Text style={styles.infoTitle}>The Process</Text>
+          <Text style={styles.infoTitle}>How It Works</Text>
           <View style={styles.stepsContainer}>
             <View style={styles.infoStep}>
               <View style={styles.stepNumber}>
@@ -349,7 +346,7 @@ export default function HomeScreen() {
               <View style={styles.stepContent}>
                 <Text style={styles.stepTitle}>Live News Search</Text>
                 <Text style={styles.stepText}>
-                  AI searches BBC News for the latest 3 current stories using web search
+                  AI searches BBC News for the latest 3 current stories
                 </Text>
               </View>
             </View>
@@ -380,7 +377,8 @@ export default function HomeScreen() {
 
         <View style={styles.disclaimer}>
           <Text style={styles.disclaimerText}>
-            🔍 Real-time web search • 🤖 AI-generated content clearly labeled • 📰 Original BBC articles provided for comparison
+            🤖 All AI-generated content is based on real BBC news stories and clearly labeled. 
+            Original BBC articles are always provided for comparison and verification.
           </Text>
         </View>
       </View>
@@ -583,144 +581,3 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-  },
-  featureTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  featureDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  suggestionsSection: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 28,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  suggestionsTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  suggestionsSubtitle: {
-    fontSize: 15,
-    color: '#6B7280',
-    marginBottom: 20,
-    lineHeight: 22,
-  },
-  suggestionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  suggestionChip: {
-    backgroundColor: '#F3F4F6',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    width: (width - 96) / 2,
-  },
-  suggestionName: {
-    fontSize: 15,
-    color: '#1F2937',
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  suggestionField: {
-    fontSize: 12,
-    color: '#BB1919',
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  suggestionDescription: {
-    fontSize: 11,
-    color: '#6B7280',
-    lineHeight: 14,
-  },
-  infoSection: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 28,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  infoTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#1F2937',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  stepsContainer: {
-    gap: 24,
-  },
-  infoStep: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  stepNumber: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#BB1919',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-    shadowColor: '#BB1919',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  stepNumberText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  stepContent: {
-    flex: 1,
-    paddingTop: 2,
-  },
-  stepTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  stepText: {
-    fontSize: 15,
-    color: '#6B7280',
-    lineHeight: 22,
-  },
-  disclaimer: {
-    backgroundColor: '#F0F9FF',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  disclaimerText: {
-    fontSize: 14,
-    color: '#0369A1',
-    lineHeight: 22,
-    textAlign: 'center',
-  },
-});
