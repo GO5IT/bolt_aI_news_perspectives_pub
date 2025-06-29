@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Clock, User, ExternalLink, Sparkles, ArrowLeft } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { fetchNewsArticles, mapApiArticleToNewsArticle } from './newsAPI';
+import { fetchNewsArticles, mapApiArticleToNewsArticle } from '../lib/newsAPI';
 
 const { width } = Dimensions.get('window');
 
