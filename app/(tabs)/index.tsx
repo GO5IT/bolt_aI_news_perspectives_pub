@@ -18,6 +18,31 @@ const RETRY_DELAY = 2000; // 2 seconds
 // Helper function to wait for a specified time
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Mock news data as fallback when APIs are unavailable
+const getMockNewsData = () => [
+  {
+    title: "Global Climate Summit Reaches Historic Agreement on Carbon Reduction",
+    snippet: "World leaders at the Global Climate Summit have reached a groundbreaking agreement on carbon reduction targets, with 195 countries committing to ambitious new goals for 2030.",
+    link: "https://example.com/climate-summit-agreement",
+    source_name: "Global News Network",
+    published_datetime_utc: new Date().toISOString()
+  },
+  {
+    title: "Breakthrough in Quantum Computing Promises Revolutionary Changes",
+    snippet: "Scientists have achieved a major breakthrough in quantum computing technology, demonstrating a new quantum processor that could revolutionize computing power and solve complex problems.",
+    link: "https://example.com/quantum-computing-breakthrough",
+    source_name: "Tech Today",
+    published_datetime_utc: new Date().toISOString()
+  },
+  {
+    title: "International Space Station Welcomes New Research Mission",
+    snippet: "The International Space Station has welcomed a new crew of astronauts who will conduct groundbreaking research in microgravity, including experiments in medicine and materials science.",
+    link: "https://example.com/iss-new-mission",
+    source_name: "Space News Daily",
+    published_datetime_utc: new Date().toISOString()
+  }
+];
+
 // Function to fetch real news from RapidAPI
 async function fetchRealNews() {
   if (!rapidApiKey || rapidApiKey.trim() === '') {
@@ -87,7 +112,9 @@ async function fetchFallbackNews() {
     return result.data || [];
   } catch (error) {
     console.error('Error fetching fallback news:', error);
-    return [];
+    // Return mock data as final fallback
+    console.log('Using mock news data as final fallback');
+    return getMockNewsData();
   }
 }
 
@@ -198,6 +225,7 @@ export default function HomeScreen() {
   const [personName, setPersonName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usingMockData, setUsingMockData] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async () => {
@@ -219,13 +247,100 @@ export default function HomeScreen() {
 
     setIsLoading(true);
     setError(null);
+    setUsingMockData(false);
 
     try {
       // First, fetch real news articles
       const realNewsArticles = await fetchRealNews();
       
       if (!realNewsArticles || realNewsArticles.length === 0) {
-        throw new Error('No news articles could be fetched at this time. Please try again later.');
+        console.log('Using mock news data as fallback');
+        setUsingMockData(true);
+        const mockData = getMockNewsData();
+        
+        // Prepare the mock news data for the AI
+        const newsData = mockData.map((article: any, index: number) => ({
+          title: article.title || `News Story ${index + 1}`,
+          summary: article.snippet || article.summary || 'No summary available',
+          url: article.link || article.url || '',
+          source: article.source_name || article.source || 'Unknown Source',
+          published: article.published_datetime_utc || article.published_at || new Date().toISOString()
+        }));
+
+        // Create the prompt with mock news data
+        const concatenatedTriviaQuizUser = `
+          Please write articles about the following news stories as if they were written by ${personName.trim()}.
+
+          Here are the news stories with their source URLs:
+
+          ${newsData.map((news, index) => `
+          Story ${index + 1}:
+          Title: "${news.title}"
+          Summary: "${news.summary}"
+          Source URL: "${news.url}"
+          Source: "${news.source}"
+          Published: "${news.published}"
+          `).join('\n')}
+
+          For each article:
+          1. Write a substantial article (300-500 words) in ${personName.trim()}'s distinctive voice and perspective
+          2. Capture their unique writing style, worldview, and way of thinking
+          3. Include the EXACT source URL provided above
+          4. Include the EXACT original title provided above
+          5. Make sure each article reflects how ${personName.trim()} would interpret and discuss the news
+
+          CRITICAL: You must use the exact URLs and titles provided above. Do not modify or create new URLs.
+        `;
+
+        // Prepare Groq API parameters
+        const temperature = 0.7;
+        const maxCompletionTokens = 4096;
+        const topP = 1;
+        const stop = null;
+        const stream = false;
+        
+        // Use a supported model
+        const finalAiModel = 'llama3-8b-8192';
+
+        const groqOutput = await groqResponse(
+          concatenatedTriviaQuizUser,
+          finalAiModel,
+          temperature,
+          maxCompletionTokens,
+          topP,
+          stop,
+          stream
+        );
+
+        setIsLoading(false);
+
+        // Safely log the AI response to prevent JSON parsing errors
+        try {
+          const parsedResponse = JSON.parse(groqOutput[1]);
+          console.log('AI Response (parsed):', JSON.stringify(parsedResponse, null, 2));
+        } catch (parseError) {
+          console.log('AI Response (raw text):', groqOutput[1]);
+        }
+
+        router.push({
+          pathname: '/news',
+          params: {
+            person: personName.trim(),
+            aiResponse: groqOutput[1],
+            realNewsData: JSON.stringify(newsData),
+            usingMockData: 'true'
+          }
+        });
+        return;
+      }
+
+      // Check if we got mock data (fallback was used)
+      const isMockData = realNewsArticles.some((article: any) => 
+        article.link && article.link.includes('example.com')
+      );
+      
+      if (isMockData) {
+        setUsingMockData(true);
       }
 
       // Prepare the news data for the AI
@@ -239,9 +354,9 @@ export default function HomeScreen() {
 
       // Create the prompt with real news data
       const concatenatedTriviaQuizUser = `
-        Please write articles about the following real news stories as if they were written by ${personName.trim()}.
+        Please write articles about the following ${isMockData ? 'sample' : 'real'} news stories as if they were written by ${personName.trim()}.
 
-        Here are the real news stories with their source URLs:
+        Here are the news stories with their source URLs:
 
         ${newsData.map((news, index) => `
         Story ${index + 1}:
@@ -297,7 +412,8 @@ export default function HomeScreen() {
         params: {
           person: personName.trim(),
           aiResponse: groqOutput[1],
-          realNewsData: JSON.stringify(newsData), // Pass the real news data for verification
+          realNewsData: JSON.stringify(newsData),
+          usingMockData: isMockData ? 'true' : 'false'
         }
       });
     } catch (error) {
@@ -364,6 +480,15 @@ export default function HomeScreen() {
       </LinearGradient>
 
       <View style={styles.content}>
+        {usingMockData && (
+          <View style={styles.mockDataNotice}>
+            <Text style={styles.mockDataTitle}>📰 Demo Mode Active</Text>
+            <Text style={styles.mockDataText}>
+              Using sample news stories for demonstration. Configure your RapidAPI key to access real-time news.
+            </Text>
+          </View>
+        )}
+
         {error && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorTitle}>
@@ -603,6 +728,25 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
+  },
+  mockDataNotice: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  mockDataTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 8,
+  },
+  mockDataText: {
+    fontSize: 15,
+    color: '#A16207',
+    lineHeight: 22,
   },
   errorContainer: {
     backgroundColor: '#FEF2F2',
