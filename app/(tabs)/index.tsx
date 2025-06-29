@@ -9,6 +9,7 @@ const { width } = Dimensions.get('window');
 
 // Import the API key from environment variables and check if it exists
 const groqApiKey = Constants?.expoConfig?.extra?.GROQ_API_KEY ?? '';
+const rapidApiKey = Constants?.expoConfig?.extra?.RAPIDAPI_KEY ?? '';
 
 // Retry configuration
 const MAX_RETRIES = 3;
@@ -16,6 +17,68 @@ const RETRY_DELAY = 2000; // 2 seconds
 
 // Helper function to wait for a specified time
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Function to fetch real news from RapidAPI
+async function fetchRealNews() {
+  if (!rapidApiKey || rapidApiKey.trim() === '') {
+    throw new Error('RAPIDAPI_KEY is not configured. Please add your RapidAPI key to the environment variables.');
+  }
+
+  const url = 'https://real-time-news-data.p.rapidapi.com/search';
+  const options = {
+    method: 'POST',
+    headers: {
+      'x-rapidapi-key': rapidApiKey,
+      'x-rapidapi-host': 'real-time-news-data.p.rapidapi.com',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      query: 'latest news today',
+      country: 'US',
+      lang: 'en',
+      source: 'bbc.com',
+      time_published: 'anytime',
+      limit: 3
+    })
+  };
+
+  try {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      throw new Error(`News API error: ${response.status}`);
+    }
+    const result = await response.json();
+    return result.data || [];
+  } catch (error) {
+    console.error('Error fetching real news:', error);
+    // Fallback to a different news source if BBC fails
+    return await fetchFallbackNews();
+  }
+}
+
+// Fallback news fetching function
+async function fetchFallbackNews() {
+  const url = 'https://real-time-news-data.p.rapidapi.com/topic-headlines';
+  const options = {
+    method: 'GET',
+    headers: {
+      'x-rapidapi-key': rapidApiKey,
+      'x-rapidapi-host': 'real-time-news-data.p.rapidapi.com'
+    }
+  };
+
+  try {
+    const response = await fetch(`${url}?topic=WORLD&country=US&lang=en&limit=3`, options);
+    if (!response.ok) {
+      throw new Error(`Fallback News API error: ${response.status}`);
+    }
+    const result = await response.json();
+    return result.data || [];
+  } catch (error) {
+    console.error('Error fetching fallback news:', error);
+    return [];
+  }
+}
 
 async function groqResponse(
   concatenatedTriviaQuizUser: string,
@@ -32,25 +95,25 @@ async function groqResponse(
   }
 
   const concatenatedTriviaQuizAssistant = `
-    You are a creative writer API capable of generating JSON data about three articles based on real news from the BBC website (https://www.bbc.com/). 
+    You are a creative writer API capable of generating JSON data about articles based on real news stories provided to you.
 
     IMPORTANT INSTRUCTIONS:
-    1. First, search for the latest news on BBC website
-    2. Select exactly 3 different current news stories from BBC
-    3. For each story, write an article as if it were written by the specified famous person
-    4. Each article should be substantial (at least 300-500 words) and capture the person's unique voice, perspective, and writing style
-    5. Include the actual BBC source URL for each story
+    1. You will be provided with real news articles including their titles, summaries, and source URLs
+    2. For each news story provided, write an article as if it were written by the specified famous person
+    3. Each article should be substantial (at least 300-500 words) and capture the person's unique voice, perspective, and writing style
+    4. ALWAYS include the exact source URL provided for each story
+    5. ALWAYS include the original title provided for each story
 
-    Your output should be a JSON array with exactly 3 objects. Respond ONLY with valid JSON (no other text). Use double quotes for all keys and string values.
+    Your output should be a JSON array with exactly the same number of objects as news stories provided. Respond ONLY with valid JSON (no other text). Use double quotes for all keys and string values.
 
     Format:
     [  
       {
-          "Timestamp": "current date and time when the source news was published",
+          "Timestamp": "current date and time",
           "Input person name": "name of the person (string)",
           "Generated article": "substantial article written in the person's voice and style (minimum 300 words)",
-          "Source URL": "actual BBC URL of the source news story",
-          "Original title": "original BBC article title",
+          "Source URL": "exact source URL provided",
+          "Original title": "exact original title provided",
           "News category": "category like Politics, Technology, Health, etc."
       }
     ]
@@ -70,30 +133,6 @@ async function groqResponse(
     stop,
     stream
   };
-
-  // Add web search for models that support it
-  if (aiModel.includes('llama') || aiModel.includes('mixtral')) {
-    requestBody.tools = [
-      {
-        type: "function",
-        function: {
-          name: "web_search",
-          description: "Search the web for current information",
-          parameters: {
-            type: "object",
-            properties: {
-              query: {
-                type: "string",
-                description: "Search query"
-              }
-            },
-            required: ["query"]
-          }
-        }
-      }
-    ];
-    requestBody.tool_choice = "auto";
-  }
 
   // Retry logic for handling 503 errors
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -156,39 +195,72 @@ export default function HomeScreen() {
       return;
     }
 
-    // Check if API key is available before making the request
+    // Check if API keys are available before making the request
     if (!groqApiKey || groqApiKey.trim() === '') {
       setError('GROQ_API_KEY is not configured. Please check your .env file and restart the development server.');
+      return;
+    }
+
+    if (!rapidApiKey || rapidApiKey.trim() === '') {
+      setError('RAPIDAPI_KEY is not configured. Please add your RapidAPI key to generate real news perspectives.');
       return;
     }
 
     setIsLoading(true);
     setError(null);
 
-    // Prepare Groq API parameters
-    const temperature = 0.7;
-    const maxCompletionTokens = 4096; // Increased for longer articles
-    const topP = 1;
-    const stop = null;
-    const stream = false;
-    
-    const concatenatedTriviaQuizUser: string = `
-      Please search for the latest 3 news stories from BBC News (https://www.bbc.com/) and write articles about them as if they were written by ${personName.trim()}.
-
-      For each article:
-      1. Find a current BBC news story
-      2. Write a substantial article (300-500 words) in ${personName.trim()}'s distinctive voice and perspective
-      3. Capture their unique writing style, worldview, and way of thinking
-      4. Include the actual BBC source URL
-      5. Make sure each article reflects how ${personName.trim()} would interpret and discuss the news
-
-      Focus on current, important news stories from different categories if possible (politics, technology, health, science, etc.).
-    `;
-
-    // Use a supported model instead of the decommissioned one
-    const finalAiModel = 'llama3-8b-8192';
-
     try {
+      // First, fetch real news articles
+      const realNewsArticles = await fetchRealNews();
+      
+      if (!realNewsArticles || realNewsArticles.length === 0) {
+        throw new Error('No news articles could be fetched at this time. Please try again later.');
+      }
+
+      // Prepare the news data for the AI
+      const newsData = realNewsArticles.map((article: any, index: number) => ({
+        title: article.title || `News Story ${index + 1}`,
+        summary: article.snippet || article.summary || 'No summary available',
+        url: article.link || article.url || '',
+        source: article.source_name || article.source || 'Unknown Source',
+        published: article.published_datetime_utc || article.published_at || new Date().toISOString()
+      }));
+
+      // Create the prompt with real news data
+      const concatenatedTriviaQuizUser = `
+        Please write articles about the following real news stories as if they were written by ${personName.trim()}.
+
+        Here are the real news stories with their source URLs:
+
+        ${newsData.map((news, index) => `
+        Story ${index + 1}:
+        Title: "${news.title}"
+        Summary: "${news.summary}"
+        Source URL: "${news.url}"
+        Source: "${news.source}"
+        Published: "${news.published}"
+        `).join('\n')}
+
+        For each article:
+        1. Write a substantial article (300-500 words) in ${personName.trim()}'s distinctive voice and perspective
+        2. Capture their unique writing style, worldview, and way of thinking
+        3. Include the EXACT source URL provided above
+        4. Include the EXACT original title provided above
+        5. Make sure each article reflects how ${personName.trim()} would interpret and discuss the news
+
+        CRITICAL: You must use the exact URLs and titles provided above. Do not modify or create new URLs.
+      `;
+
+      // Prepare Groq API parameters
+      const temperature = 0.7;
+      const maxCompletionTokens = 4096;
+      const topP = 1;
+      const stop = null;
+      const stream = false;
+      
+      // Use a supported model
+      const finalAiModel = 'llama3-8b-8192';
+
       const groqOutput = await groqResponse(
         concatenatedTriviaQuizUser,
         finalAiModel,
@@ -214,6 +286,7 @@ export default function HomeScreen() {
         params: {
           person: personName.trim(),
           aiResponse: groqOutput[1],
+          realNewsData: JSON.stringify(newsData), // Pass the real news data for verification
         }
       });
     } catch (error) {
@@ -243,12 +316,12 @@ export default function HomeScreen() {
     {
       icon: Brain,
       title: 'AI-Powered Analysis',
-      description: 'Advanced AI transforms real BBC news through unique historical perspectives'
+      description: 'Advanced AI transforms real news through unique historical perspectives'
     },
     {
       icon: Globe,
-      title: 'Live BBC News',
-      description: 'Latest stories sourced directly from BBC News website'
+      title: 'Live News Sources',
+      description: 'Latest stories sourced directly from verified news outlets with source URLs'
     },
     {
       icon: Zap,
@@ -274,7 +347,7 @@ export default function HomeScreen() {
           </View>
           <Text style={styles.headerTitle}>AI News Perspectives</Text>
           <Text style={styles.headerSubtitle}>
-            Experience today's BBC news through the minds of history's greatest thinkers
+            Experience today's real news through the minds of history's greatest thinkers
           </Text>
         </View>
       </LinearGradient>
@@ -283,7 +356,8 @@ export default function HomeScreen() {
         {error && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorTitle}>
-              {error.includes('temporarily unavailable') ? '⏳ Service Temporarily Unavailable' : '⚠️ Configuration Required'}
+              {error.includes('temporarily unavailable') ? '⏳ Service Temporarily Unavailable' : 
+               error.includes('RAPIDAPI_KEY') ? '🔑 News API Key Required' : '⚠️ Configuration Required'}
             </Text>
             <Text style={styles.errorText}>{error}</Text>
             {error.includes('temporarily unavailable') ? (
@@ -294,14 +368,27 @@ export default function HomeScreen() {
                   {'\n\n'}Please try again in a few minutes. The service should be back online shortly.
                 </Text>
               </View>
+            ) : error.includes('RAPIDAPI_KEY') ? (
+              <View style={styles.errorInstructionsContainer}>
+                <Text style={styles.errorInstructionsTitle}>Setup RapidAPI for Real News:</Text>
+                <Text style={styles.errorInstructions}>
+                  1. Sign up at https://rapidapi.com{'\n'}
+                  2. Subscribe to "Real-Time News Data" API{'\n'}
+                  3. Add RAPIDAPI_KEY=your_key to your .env file{'\n'}
+                  4. Restart the development server{'\n\n'}
+                  This enables fetching real news with verifiable source URLs.
+                </Text>
+              </View>
             ) : (
               <View style={styles.errorInstructionsContainer}>
                 <Text style={styles.errorInstructionsTitle}>Quick Setup:</Text>
                 <Text style={styles.errorInstructions}>
                   1. Create a .env file in your project root{'\n'}
                   2. Add: GROQ_API_KEY=your_api_key_here{'\n'}
-                  3. Get your API key from https://console.groq.com{'\n'}
-                  4. Restart the development server (npm run dev)
+                  3. Add: RAPIDAPI_KEY=your_rapidapi_key_here{'\n'}
+                  4. Get GROQ key from https://console.groq.com{'\n'}
+                  5. Get RapidAPI key from https://rapidapi.com{'\n'}
+                  6. Restart the development server (npm run dev)
                 </Text>
               </View>
             )}
@@ -312,7 +399,7 @@ export default function HomeScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Choose Your Perspective</Text>
             <Text style={styles.sectionSubtitle}>
-              Enter any famous person's name to see today's BBC news through their unique worldview
+              Enter any famous person's name to see today's real news through their unique worldview
             </Text>
           </View>
 
@@ -342,12 +429,12 @@ export default function HomeScreen() {
               {isLoading ? (
                 <View style={styles.loadingContainer}>
                   <View style={styles.loadingSpinner} />
-                  <Text style={styles.submitButtonText}>Searching BBC News & Generating...</Text>
+                  <Text style={styles.submitButtonText}>Fetching Real News & Generating...</Text>
                 </View>
               ) : (
                 <>
                   <Search size={20} color="#fff" />
-                  <Text style={styles.submitButtonText}>Generate Live BBC Perspectives</Text>
+                  <Text style={styles.submitButtonText}>Generate Real News Perspectives</Text>
                 </>
               )}
             </LinearGradient>
@@ -372,7 +459,7 @@ export default function HomeScreen() {
         <View style={styles.suggestionsSection}>
           <Text style={styles.suggestionsTitle}>Popular Perspectives</Text>
           <Text style={styles.suggestionsSubtitle}>
-            Tap any name to instantly generate their unique take on today's BBC news
+            Tap any name to instantly generate their unique take on today's real news
           </Text>
           <View style={styles.suggestionsGrid}>
             {famousPersons.map((person, index) => (
@@ -397,9 +484,9 @@ export default function HomeScreen() {
                 <Text style={styles.stepNumberText}>1</Text>
               </View>
               <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Live News Search</Text>
+                <Text style={styles.stepTitle}>Real News Fetching</Text>
                 <Text style={styles.stepText}>
-                  AI searches BBC News for the latest 3 current stories
+                  AI fetches the latest real news stories from verified sources with accessible URLs
                 </Text>
               </View>
             </View>
@@ -419,9 +506,9 @@ export default function HomeScreen() {
                 <Text style={styles.stepNumberText}>3</Text>
               </View>
               <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Unique Articles</Text>
+                <Text style={styles.stepTitle}>Verifiable Articles</Text>
                 <Text style={styles.stepText}>
-                  Get substantial articles written in their distinctive voice and perspective
+                  Get substantial articles with original source URLs for fact-checking and verification
                 </Text>
               </View>
             </View>
@@ -430,8 +517,8 @@ export default function HomeScreen() {
 
         <View style={styles.disclaimer}>
           <Text style={styles.disclaimerText}>
-            🤖 All AI-generated content is based on real BBC news stories and clearly labeled. 
-            Original BBC articles are always provided for comparison and verification.
+            🔗 All AI-generated content is based on real news stories with verifiable source URLs. 
+            Original articles are always provided for comparison and fact-checking.
           </Text>
         </View>
       </View>

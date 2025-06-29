@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions, Linking, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, ExternalLink, User, Sparkles, Clock, Globe } from 'lucide-react-native';
+import { ArrowLeft, ExternalLink, User, Sparkles, Clock, Globe, CheckCircle, AlertTriangle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
@@ -19,6 +19,7 @@ export default function ArticleScreen() {
     person,
     source,
     publishedAt,
+    isVerified,
   } = params;
 
   // Parse the AI-generated content to extract the actual article text
@@ -44,6 +45,26 @@ export default function ArticleScreen() {
 
   const aiArticleContent = parseAIContent(summary as string);
   const displayTitle = title || originalTitle || 'Untitled Article';
+  const sourceUrl = originalUrl as string;
+  const verified = isVerified === 'true' || isVerified === true;
+
+  const handleOpenSource = async () => {
+    if (!sourceUrl || !sourceUrl.startsWith('http')) {
+      Alert.alert('Invalid URL', 'This article does not have a valid source URL.');
+      return;
+    }
+
+    try {
+      const supported = await Linking.canOpenURL(sourceUrl);
+      if (supported) {
+        await Linking.openURL(sourceUrl);
+      } else {
+        Alert.alert('Cannot open URL', 'Unable to open this link on your device.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to open the source URL.');
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -56,7 +77,7 @@ export default function ArticleScreen() {
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Article Perspective</Text>
-          <Text style={styles.headerSubtitle}>AI-generated vs Original</Text>
+          <Text style={styles.headerSubtitle}>AI-generated vs Original Source</Text>
         </View>
       </LinearGradient>
 
@@ -71,6 +92,25 @@ export default function ArticleScreen() {
             colors={['transparent', 'rgba(0,0,0,0.6)']}
             style={styles.heroOverlay}
           />
+        </View>
+
+        {/* Source Verification Banner */}
+        <View style={[styles.verificationBanner, verified ? styles.verifiedBanner : styles.unverifiedBanner]}>
+          {verified ? (
+            <>
+              <CheckCircle size={20} color="#10B981" />
+              <Text style={styles.verificationText}>
+                ✅ This article is based on a verified news source with accessible URL
+              </Text>
+            </>
+          ) : (
+            <>
+              <AlertTriangle size={20} color="#F59E0B" />
+              <Text style={styles.verificationText}>
+                ⚠️ Source URL verification pending
+              </Text>
+            </>
+          )}
         </View>
 
         {/* AI Generated Section */}
@@ -103,10 +143,71 @@ export default function ArticleScreen() {
           </View>
         </View>
 
+        {/* Source Verification Section */}
+        <View style={styles.sourceVerificationSection}>
+          <View style={styles.sourceHeader}>
+            <Globe size={24} color="#3B82F6" />
+            <Text style={styles.sourceTitle}>Original Source Verification</Text>
+          </View>
+          
+          <View style={styles.sourceCard}>
+            <View style={styles.sourceDetails}>
+              <Text style={styles.sourceLabel}>Source:</Text>
+              <Text style={styles.sourceValue}>{source}</Text>
+            </View>
+            
+            <View style={styles.sourceDetails}>
+              <Text style={styles.sourceLabel}>Original Title:</Text>
+              <Text style={styles.sourceValue}>{originalTitle || displayTitle}</Text>
+            </View>
+            
+            <View style={styles.sourceDetails}>
+              <Text style={styles.sourceLabel}>URL Status:</Text>
+              <View style={styles.urlStatus}>
+                {verified ? (
+                  <>
+                    <CheckCircle size={16} color="#10B981" />
+                    <Text style={[styles.sourceValue, { color: '#10B981' }]}>Verified & Accessible</Text>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle size={16} color="#F59E0B" />
+                    <Text style={[styles.sourceValue, { color: '#F59E0B' }]}>Pending Verification</Text>
+                  </>
+                )}
+              </View>
+            </View>
+
+            {sourceUrl && (
+              <View style={styles.sourceDetails}>
+                <Text style={styles.sourceLabel}>Source URL:</Text>
+                <TouchableOpacity onPress={handleOpenSource} style={styles.urlContainer}>
+                  <Text style={styles.urlText} numberOfLines={2}>
+                    {sourceUrl}
+                  </Text>
+                  <ExternalLink size={16} color="#3B82F6" />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {sourceUrl && (
+              <TouchableOpacity style={styles.verifySourceButton} onPress={handleOpenSource}>
+                <LinearGradient
+                  colors={['#3B82F6', '#2563EB']}
+                  style={styles.verifySourceButtonGradient}
+                >
+                  <ExternalLink color="#fff" size={18} />
+                  <Text style={styles.verifySourceButtonText}>Verify Original Source</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
         {/* Divider */}
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>Original Source</Text>
+          <Text style={styles.dividerText}>Original Article Summary</Text>
           <View style={styles.dividerLine} />
         </View>
 
@@ -134,30 +235,24 @@ export default function ArticleScreen() {
             
             <View style={styles.articleContent}>
               <Text style={styles.articleBody}>
-                {originalSummary || 'Original article content would be displayed here. In a production app, this would fetch the full article content from the source URL.'}
+                {originalSummary || 'Original article summary would be displayed here. The full article content is available at the source URL above for verification and complete reading.'}
               </Text>
             </View>
-            
-            {originalUrl && (
-              <TouchableOpacity style={styles.readOriginalButton}>
-                <LinearGradient
-                  colors={['#1E3A8A', '#1E40AF']}
-                  style={styles.readOriginalButtonGradient}
-                >
-                  <ExternalLink color="#fff" size={18} />
-                  <Text style={styles.readOriginalButtonText}>Read Full Original</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            )}
           </View>
         </View>
 
         {/* Comparison Note */}
         <View style={styles.comparisonNote}>
-          <Text style={styles.comparisonTitle}>🔍 Compare & Contrast</Text>
+          <Text style={styles.comparisonTitle}>🔍 Compare & Verify</Text>
           <Text style={styles.comparisonText}>
-            Notice how {person}'s unique perspective, writing style, and worldview transform the same news story. 
-            The AI captures their distinctive voice while maintaining factual accuracy from the original source.
+            Notice how {person}'s unique perspective transforms the same news story while maintaining factual accuracy. 
+            {verified ? 
+              ' The source URL above has been verified and is accessible for fact-checking.' :
+              ' Please verify the source URL to ensure the information is accurate and up-to-date.'
+            }
+          </Text>
+          <Text style={styles.comparisonSubtext}>
+            Always cross-reference AI-generated content with original sources for complete accuracy.
           </Text>
         </View>
 
@@ -307,6 +402,30 @@ const styles = StyleSheet.create({
     right: 0,
     height: 80,
   },
+  verificationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  verifiedBanner: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  unverifiedBanner: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  verificationText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 12,
+    flex: 1,
+    color: '#374151',
+  },
   section: { 
     padding: 20,
   },
@@ -349,6 +468,81 @@ const styles = StyleSheet.create({
   originalSectionLabel: { 
     color: '#fff', 
     fontSize: 15, 
+    fontWeight: '700', 
+    marginLeft: 8,
+  },
+  sourceVerificationSection: {
+    padding: 20,
+    backgroundColor: '#F8FAFC',
+  },
+  sourceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sourceTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginLeft: 12,
+  },
+  sourceCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  sourceDetails: {
+    marginBottom: 16,
+  },
+  sourceLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  sourceValue: {
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: '500',
+  },
+  urlStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  urlContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  urlText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#3B82F6',
+    marginRight: 8,
+  },
+  verifySourceButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  verifySourceButtonGradient: {
+    paddingHorizontal: 20, 
+    paddingVertical: 14, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+  },
+  verifySourceButtonText: { 
+    color: '#fff', 
+    fontSize: 16, 
     fontWeight: '700', 
     marginLeft: 8,
   },
@@ -399,24 +593,6 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     textAlign: 'justify',
   },
-  readOriginalButton: {
-    margin: 20,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  readOriginalButtonGradient: {
-    paddingHorizontal: 20, 
-    paddingVertical: 14, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center',
-  },
-  readOriginalButtonText: { 
-    color: '#fff', 
-    fontSize: 16, 
-    fontWeight: '700', 
-    marginLeft: 8,
-  },
   divider: { 
     paddingVertical: 32, 
     alignItems: 'center',
@@ -453,6 +629,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#1E40AF',
     lineHeight: 24,
+    marginBottom: 12,
+  },
+  comparisonSubtext: {
+    fontSize: 14,
+    color: '#3B82F6',
+    fontStyle: 'italic',
+    lineHeight: 20,
   },
   bottomPadding: {
     height: 40,

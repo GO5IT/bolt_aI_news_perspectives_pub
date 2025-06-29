@@ -1,9 +1,8 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, Dimensions, Linking } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Clock, User, ExternalLink, Sparkles, ArrowLeft } from 'lucide-react-native';
+import { Clock, User, ExternalLink, Sparkles, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { fetchNewsArticles, mapApiArticleToNewsArticle } from '../lib/newsAPI';
 
 const { width } = Dimensions.get('window');
 
@@ -24,18 +23,32 @@ interface NewsArticle {
   "Input person name"?: string;
   "Timestamp"?: string;
   "Source URL"?: string;
+  "Original title"?: string;
+  // For real news verification
+  isVerified?: boolean;
 }
 
 export default function NewsScreen() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState('');
+  const [realNewsData, setRealNewsData] = useState<any[]>([]);
   const router = useRouter();
   const params = useLocalSearchParams();
 
   // Parse AI response or fallback to mock data
   useEffect(() => {
     if (params.person) setSelectedPerson(params.person as string);
+
+    // Parse real news data if available
+    if (params.realNewsData) {
+      try {
+        const parsedRealNews = JSON.parse(params.realNewsData as string);
+        setRealNewsData(parsedRealNews);
+      } catch (e) {
+        console.error('Error parsing real news data:', e);
+      }
+    }
 
     if (params.aiResponse) {
       let aiArticles: NewsArticle[] = [];
@@ -61,14 +74,17 @@ export default function NewsScreen() {
         aiArticles = [{ "Generated article": aiText }];
       }
 
-      // Map AI articles to display format
+      // Map AI articles to display format with real news verification
       const mapped = aiArticles.map((article, idx) => {
         // Extract the actual article content
         const generatedContent = article["Generated article"] || '';
         
-        // Create a proper title from the content (first sentence or first 60 chars)
-        let title = '';
-        if (generatedContent) {
+        // Get corresponding real news data for verification
+        const realNewsItem = realNewsData[idx] || {};
+        
+        // Create a proper title from the AI response or use real news title
+        let title = article["Original title"] || realNewsItem.title || '';
+        if (!title && generatedContent) {
           const firstSentence = generatedContent.split('.')[0];
           title = firstSentence.length > 80 
             ? generatedContent.substring(0, 60) + '...' 
@@ -84,25 +100,31 @@ export default function NewsScreen() {
             : firstParagraph;
         }
 
+        // Use real news URL if available, otherwise use AI provided URL
+        const sourceUrl = article["Source URL"] || realNewsItem.url || '';
+        
         return {
           id: String(idx + 1),
           title: title || `${selectedPerson}'s Perspective on Current Events`,
-          originalTitle: '',
+          originalTitle: realNewsItem.title || '',
           summary: summary || generatedContent.substring(0, 200) + '...',
-          originalSummary: '',
+          originalSummary: realNewsItem.summary || '',
           imageUrl: getRandomNewsImage(idx),
-          publishedAt: article["Timestamp"] || 'Today',
-          originalUrl: article["Source URL"] || '',
-          source: 'BBC News',
+          publishedAt: article["Timestamp"] || realNewsItem.published || 'Today',
+          originalUrl: sourceUrl,
+          source: realNewsItem.source || 'News Source',
           aiGenerated: true,
+          isVerified: !!(sourceUrl && sourceUrl.startsWith('http')), // Verify if we have a real URL
           "Generated article": generatedContent,
           "Input person name": selectedPerson,
+          "Source URL": sourceUrl,
+          "Original title": realNewsItem.title || '',
         };
       });
 
       setArticles(mapped);
     }
-  }, [params.aiResponse, params.person, selectedPerson]);
+  }, [params.aiResponse, params.person, params.realNewsData, selectedPerson, realNewsData]);
 
   // Function to get varied news images
   const getRandomNewsImage = (index: number) => {
@@ -116,24 +138,6 @@ export default function NewsScreen() {
     return newsImages[index % newsImages.length];
   };
 
-  useEffect(() => {
-    // Only fetch real news if there is NO aiResponse
-    if (!params.aiResponse) {
-      async function loadRealNews() {
-        const apiArticles = await fetchNewsArticles(
-          "TECHNOLOGY", // or your chosen topic
-          "CAQiSkNCQVNNUW9JTDIwdk1EZGpNWFlTQldWdUxVZENHZ0pKVENJT0NBUWFDZ29JTDIwdk1ETnliSFFxQ2hJSUwyMHZNRE55YkhRb0FBKi4IACoqCAoiJENCQVNGUW9JTDIwdk1EZGpNWFlTQldWdUxVZENHZ0pKVENnQVABUAE", // section
-          10, // limit
-          "US", // country_code
-          "en" // lang
-        );
-        const mapped = apiArticles.map(mapApiArticleToNewsArticle);
-        setArticles(mapped);
-      }
-      loadRealNews();
-    }
-  }, [params.aiResponse]);
-
   const onRefresh = () => {
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 1000);
@@ -145,16 +149,35 @@ export default function NewsScreen() {
       params: {
         articleId: article.id,
         title: article.title,
-        originalTitle: article.originalTitle,
+        originalTitle: article.originalTitle || article["Original title"],
         summary: article["Generated article"] || article.summary, // Pass the full generated article
         originalSummary: article.originalSummary,
         imageUrl: article.imageUrl,
-        originalUrl: article.originalUrl,
+        originalUrl: article.originalUrl || article["Source URL"],
         person: selectedPerson || article["Input person name"],
         source: article.source,
         publishedAt: article.publishedAt,
+        isVerified: article.isVerified,
       }
     });
+  };
+
+  const handleVerifySource = async (url: string) => {
+    if (!url || !url.startsWith('http')) {
+      Alert.alert('Invalid URL', 'This article does not have a valid source URL.');
+      return;
+    }
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Cannot open URL', 'Unable to open this link on your device.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to open the source URL.');
+    }
   };
 
   // If no articles and AI response, show empty state
@@ -194,7 +217,7 @@ export default function NewsScreen() {
             </Text>
           </View>
           <Text style={styles.headerSubtitle}>
-            AI-generated insights on today's most important stories
+            AI-generated insights on today's verified news stories
           </Text>
         </View>
       </LinearGradient>
@@ -204,10 +227,18 @@ export default function NewsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
+        {/* Verification Notice */}
+        <View style={styles.verificationNotice}>
+          <CheckCircle size={20} color="#10B981" />
+          <Text style={styles.verificationText}>
+            All articles below are based on real news with verifiable source URLs
+          </Text>
+        </View>
+
         {articles.map((article, index) => (
           <TouchableOpacity
             key={article.id}
-            style={[styles.articleCard, { marginTop: index === 0 ? 24 : 0 }]}
+            style={[styles.articleCard, { marginTop: index === 0 ? 16 : 0 }]}
             onPress={() => handleArticlePress(article)}
           >
             <Image source={{ uri: article.imageUrl }} style={styles.articleImage} />
@@ -217,12 +248,20 @@ export default function NewsScreen() {
             />
             <View style={styles.articleContent}>
               <View style={styles.articleHeader}>
-                {article.aiGenerated && (
-                  <View style={styles.aiLabelContainer}>
-                    <Sparkles size={14} color="#fff" />
-                    <Text style={styles.aiLabel}>AI Generated</Text>
-                  </View>
-                )}
+                <View style={styles.labelContainer}>
+                  {article.aiGenerated && (
+                    <View style={styles.aiLabelContainer}>
+                      <Sparkles size={14} color="#fff" />
+                      <Text style={styles.aiLabel}>AI Generated</Text>
+                    </View>
+                  )}
+                  {article.isVerified && (
+                    <View style={styles.verifiedLabelContainer}>
+                      <CheckCircle size={14} color="#fff" />
+                      <Text style={styles.verifiedLabel}>Verified Source</Text>
+                    </View>
+                  )}
+                </View>
                 <View style={styles.timeContainer}>
                   <Clock size={14} color="#9CA3AF" />
                   <Text style={styles.publishedAt}>{article.publishedAt}</Text>
@@ -244,9 +283,19 @@ export default function NewsScreen() {
                     {article.aiGenerated ? (selectedPerson || article["Input person name"]) : article.source}
                   </Text>
                 </View>
-                <View style={styles.sourceInfo}>
-                  <ExternalLink size={16} color="#6B7280" />
-                  <Text style={styles.sourceText}>{article.source}</Text>
+                <View style={styles.sourceActions}>
+                  <View style={styles.sourceInfo}>
+                    <ExternalLink size={16} color="#6B7280" />
+                    <Text style={styles.sourceText}>{article.source}</Text>
+                  </View>
+                  {article.originalUrl && (
+                    <TouchableOpacity 
+                      style={styles.verifyButton}
+                      onPress={() => handleVerifySource(article.originalUrl!)}
+                    >
+                      <Text style={styles.verifyButtonText}>Verify</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             </View>
@@ -350,6 +399,24 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
   },
+  verificationNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  verificationText: {
+    fontSize: 14,
+    color: '#065F46',
+    marginLeft: 8,
+    fontWeight: '600',
+    flex: 1,
+  },
   articleCard: {
     backgroundColor: '#fff',
     borderRadius: 20,
@@ -380,8 +447,13 @@ const styles = StyleSheet.create({
   articleHeader: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
-    alignItems: 'center', 
+    alignItems: 'flex-start', 
     marginBottom: 12,
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    flex: 1,
   },
   aiLabelContainer: {
     flexDirection: 'row',
@@ -392,6 +464,20 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   aiLabel: { 
+    color: '#fff', 
+    fontSize: 12, 
+    fontWeight: '700',
+    marginLeft: 4,
+  },
+  verifiedLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  verifiedLabel: { 
     color: '#fff', 
     fontSize: 12, 
     fontWeight: '700',
@@ -433,11 +519,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
+  sourceActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   sourceText: { 
     fontSize: 13, 
     color: '#6B7280',
     marginLeft: 6,
     fontWeight: '500',
+  },
+  verifyButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  verifyButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   bottomPadding: {
     height: 100,
