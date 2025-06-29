@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, Dimensions } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Clock, User, ExternalLink, Sparkles, ArrowLeft } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,13 +31,22 @@ export default function NewsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
   const params = useLocalSearchParams();
+  const isMountedRef = useRef(true);
   
   // Derive selectedPerson directly from params instead of using state
   const selectedPerson = Array.isArray(params.person) ? params.person.join(', ') : (params.person || '');
 
+  // Cleanup function to prevent state updates on unmounted component
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Parse AI response or fallback to mock data
   useEffect(() => {
-    if (params.aiResponse) {
+    if (params.aiResponse && isMountedRef.current) {
       let aiArticles: NewsArticle[] = [];
       let aiText = String(params.aiResponse).trim();
 
@@ -69,31 +78,49 @@ export default function NewsScreen() {
           ? a["Input person name"].join(', ')
           : (a["Input person name"] || selectedPerson || ''),
       }));
-      setArticles(mapped);
+      
+      if (isMountedRef.current) {
+        setArticles(mapped);
+      }
     }
   }, [params.aiResponse, selectedPerson]);
 
   useEffect(() => {
     // Only fetch real news if there is NO aiResponse
-    if (!params.aiResponse) {
+    if (!params.aiResponse && isMountedRef.current) {
       async function loadRealNews() {
-        const apiArticles = await fetchNewsArticles(
-          "TECHNOLOGY", // or your chosen topic
-          "CAQiSkNCQVNNUW9JTDIwdk1EZGpNWFlTQldWdUxVZENHZ0pKVENJT0NBUWFDZ29JTDIwdk1ETnliSFFxQ2hJSUwyMHZNRE55YkhRb0FBKi4IACoqCAoiJENCQVNGUW9JTDIwdk1EZGpNWFlTQldWdUxVZENHZ0pKVENnQVABUAE", // section
-          10, // limit
-          "US", // country_code
-          "en" // lang
-        );
-        const mapped = apiArticles.map(mapApiArticleToNewsArticle);
-        setArticles(mapped);
+        try {
+          const apiArticles = await fetchNewsArticles(
+            "TECHNOLOGY", // or your chosen topic
+            "CAQiSkNCQVNNUW9JTDIwdk1EZGpNWFlTQldWdUxVZENHZ0pKVENJT0NBUWFDZ29JTDIwdk1ETnliSFFxQ2hJSUwyMHZNRE55YkhRb0FBKi4IACoqCAoiJENCQVNGUW9JTDIwdk1EZGpNWFlTQldWdUxVZENHZ0pKVENnQVABUAE", // section
+            10, // limit
+            "US", // country_code
+            "en" // lang
+          );
+          const mapped = apiArticles.map(mapApiArticleToNewsArticle);
+          if (isMountedRef.current) {
+            setArticles(mapped);
+          }
+        } catch (error) {
+          console.error('Error loading news:', error);
+          if (isMountedRef.current) {
+            setArticles([]);
+          }
+        }
       }
       loadRealNews();
     }
   }, [params.aiResponse]);
 
   const onRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    if (isMountedRef.current) {
+      setRefreshing(true);
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          setRefreshing(false);
+        }
+      }, 1000);
+    }
   };
 
   const handleArticlePress = (article: NewsArticle) => {

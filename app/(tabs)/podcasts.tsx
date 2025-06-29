@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Play, Clock, User, Headphones } from 'lucide-react-native';
 
@@ -23,16 +23,27 @@ export default function PodcastsScreen() {
   const [selectedPerson, setSelectedPerson] = useState('');
   const router = useRouter();
   const params = useLocalSearchParams();
+  const isMountedRef = useRef(true);
+
+  // Cleanup function to prevent state updates on unmounted component
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
-    if (params.person) {
+    if (params.person && isMountedRef.current) {
       setSelectedPerson(params.person as string);
       fetchPodcasts(params.person as string);
     }
   }, [params.person]);
 
   const fetchPodcasts = async (person: string) => {
-    setRefreshing(true);
+    if (isMountedRef.current) {
+      setRefreshing(true);
+    }
     
     // Simulate fetching and transforming podcasts
     setTimeout(() => {
@@ -104,8 +115,10 @@ export default function PodcastsScreen() {
         },
       ];
       
-      setEpisodes(mockEpisodes);
-      setRefreshing(false);
+      if (isMountedRef.current) {
+        setEpisodes(mockEpisodes);
+        setRefreshing(false);
+      }
     }, 1500);
   };
 
@@ -140,7 +153,7 @@ export default function PodcastsScreen() {
   };
 
   const onRefresh = () => {
-    if (selectedPerson) {
+    if (selectedPerson && isMountedRef.current) {
       fetchPodcasts(selectedPerson);
     }
   };
