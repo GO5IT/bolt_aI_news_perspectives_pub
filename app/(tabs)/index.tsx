@@ -164,8 +164,13 @@ export default function HomeScreen() {
 
       setIsLoading(false);
 
-      // Print the AI response to the console
-      console.log('AI Response:', groqOutput[1]);
+      // Safely log the AI response to prevent JSON parsing errors
+      try {
+        const parsedResponse = JSON.parse(groqOutput[1]);
+        console.log('AI Response (parsed):', JSON.stringify(parsedResponse, null, 2));
+      } catch (parseError) {
+        console.log('AI Response (raw text):', groqOutput[1]);
+      }
 
       router.push({
         pathname: '/news',
