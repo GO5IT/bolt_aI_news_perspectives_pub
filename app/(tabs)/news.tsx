@@ -42,36 +42,76 @@ export default function NewsScreen() {
       let aiText = String(params.aiResponse).trim();
 
       try {
+        // Clean up the JSON response - remove any markdown formatting
+        aiText = aiText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        
         if (aiText.startsWith('[') || aiText.startsWith('{')) {
-          aiText = aiText.replace(/'/g, '"');
-          aiArticles = JSON.parse(aiText);
-          if (!Array.isArray(aiArticles)) aiArticles = [aiArticles];
+          const parsed = JSON.parse(aiText);
+          aiArticles = Array.isArray(parsed) ? parsed : [parsed];
         } else {
+          // If it's not JSON, treat as plain text
           aiArticles = [{ "Generated article": aiText }];
         }
       } catch (e) {
+        console.error('JSON parsing error:', e);
+        // If parsing fails, treat as plain text
         aiArticles = [{ "Generated article": aiText }];
       }
 
-      // Map AI articles to old UI article structure
-      const mapped = aiArticles.map((a, idx) => ({
-        id: String(idx + 1),
-        title: a["Generated article"] || a.title || '',
-        originalTitle: a.originalTitle || '',
-        summary: a["Generated article"] || a.summary || '',
-        originalSummary: a.originalSummary || '',
-        imageUrl: a.imageUrl || 'https://images.pexels.com/photos/163064/play-stone-network-networked-interactive-163064.jpeg?auto=compress&cs=tinysrgb&w=800',
-        publishedAt: a["Timestamp"] || a.publishedAt || 'Today',
-        originalUrl: a["Source URL"] || a.originalUrl || '',
-        source: a.source || 'BBC',
-        aiGenerated: true,
-        "Input person name": Array.isArray(a["Input person name"])
-          ? a["Input person name"].join(', ')
-          : (a["Input person name"] || (Array.isArray(params.person) ? params.person.join(', ') : params.person) || ''),
-      }));
+      // Map AI articles to display format
+      const mapped = aiArticles.map((article, idx) => {
+        // Extract the actual article content
+        const generatedContent = article["Generated article"] || '';
+        
+        // Create a proper title from the content (first sentence or first 60 chars)
+        let title = '';
+        if (generatedContent) {
+          const firstSentence = generatedContent.split('.')[0];
+          title = firstSentence.length > 80 
+            ? generatedContent.substring(0, 60) + '...' 
+            : firstSentence + '.';
+        }
+
+        // Create a summary (first paragraph or first 200 chars)
+        let summary = '';
+        if (generatedContent) {
+          const firstParagraph = generatedContent.split('\n\n')[0] || generatedContent.split('\n')[0];
+          summary = firstParagraph.length > 200 
+            ? firstParagraph.substring(0, 200) + '...' 
+            : firstParagraph;
+        }
+
+        return {
+          id: String(idx + 1),
+          title: title || `${selectedPerson}'s Perspective on Current Events`,
+          originalTitle: '',
+          summary: summary || generatedContent.substring(0, 200) + '...',
+          originalSummary: '',
+          imageUrl: getRandomNewsImage(idx),
+          publishedAt: article["Timestamp"] || 'Today',
+          originalUrl: article["Source URL"] || '',
+          source: 'BBC News',
+          aiGenerated: true,
+          "Generated article": generatedContent,
+          "Input person name": selectedPerson,
+        };
+      });
+
       setArticles(mapped);
     }
-  }, [params.aiResponse, params.person]);
+  }, [params.aiResponse, params.person, selectedPerson]);
+
+  // Function to get varied news images
+  const getRandomNewsImage = (index: number) => {
+    const newsImages = [
+      'https://images.pexels.com/photos/518543/pexels-photo-518543.jpeg?auto=compress&cs=tinysrgb&w=800',
+      'https://images.pexels.com/photos/1591056/pexels-photo-1591056.jpeg?auto=compress&cs=tinysrgb&w=800',
+      'https://images.pexels.com/photos/1591447/pexels-photo-1591447.jpeg?auto=compress&cs=tinysrgb&w=800',
+      'https://images.pexels.com/photos/1591061/pexels-photo-1591061.jpeg?auto=compress&cs=tinysrgb&w=800',
+      'https://images.pexels.com/photos/163064/play-stone-network-networked-interactive-163064.jpeg?auto=compress&cs=tinysrgb&w=800'
+    ];
+    return newsImages[index % newsImages.length];
+  };
 
   useEffect(() => {
     // Only fetch real news if there is NO aiResponse
@@ -103,7 +143,7 @@ export default function NewsScreen() {
         articleId: article.id,
         title: article.title,
         originalTitle: article.originalTitle,
-        summary: article.summary,
+        summary: article["Generated article"] || article.summary, // Pass the full generated article
         originalSummary: article.originalSummary,
         imageUrl: article.imageUrl,
         originalUrl: article.originalUrl,
