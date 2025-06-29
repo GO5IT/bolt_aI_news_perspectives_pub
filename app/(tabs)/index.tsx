@@ -148,9 +148,8 @@ export default function HomeScreen() {
       Focus on current, important news stories from different categories if possible (politics, technology, health, science, etc.).
     `;
 
-    // Use a model that supports web search
-    // const finalAiModel = "llama-3.1-70b-versatile"; // This model supports web search
-    const finalAiModel = 'compound-beta-mini';
+    // Use a supported model instead of the decommissioned one
+    const finalAiModel = 'llama3-8b-8192';
 
     try {
       const groqOutput = await groqResponse(
@@ -581,3 +580,137 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
+  },
+  featureTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  featureDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  suggestionsSection: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 28,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  suggestionsTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  suggestionsSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  suggestionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+  },
+  suggestionChip: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    minWidth: 140,
+  },
+  suggestionName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  suggestionField: {
+    fontSize: 12,
+    color: '#BB1919',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  infoSection: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 28,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  infoTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  stepsContainer: {
+    gap: 20,
+  },
+  infoStep: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  stepNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#BB1919',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  stepNumberText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  stepContent: {
+    flex: 1,
+  },
+  stepTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  stepText: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  disclaimer: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  disclaimerText: {
+    fontSize: 14,
+    color: '#0369A1',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+});
