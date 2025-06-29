@@ -1,9 +1,11 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Dimensions } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Search, Sparkles, User } from 'lucide-react-native';
+import { Search, Sparkles, User, Brain, Zap, Globe } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
+
+const { width } = Dimensions.get('window');
 
 // Import the API key from environment variables and check if it exists
 const groqApiKey = Constants?.expoConfig?.extra?.GROQ_API_KEY ?? '';
@@ -136,21 +138,52 @@ export default function HomeScreen() {
   };
 
   const famousPersons = [
-    'Albert Einstein', 'Oprah Winfrey', 'Elon Musk', 'Maya Angelou',
-    'Steve Jobs', 'Nelson Mandela', 'Marie Curie', 'Winston Churchill'
+    { name: 'Albert Einstein', field: 'Physics' },
+    { name: 'Oprah Winfrey', field: 'Media' },
+    { name: 'Elon Musk', field: 'Technology' },
+    { name: 'Maya Angelou', field: 'Literature' },
+    { name: 'Steve Jobs', field: 'Innovation' },
+    { name: 'Nelson Mandela', field: 'Leadership' },
+    { name: 'Marie Curie', field: 'Science' },
+    { name: 'Winston Churchill', field: 'Politics' }
+  ];
+
+  const features = [
+    {
+      icon: Brain,
+      title: 'AI-Powered Analysis',
+      description: 'Advanced AI transforms news through unique historical perspectives'
+    },
+    {
+      icon: Globe,
+      title: 'Real-Time News',
+      description: 'Latest stories from trusted global news sources'
+    },
+    {
+      icon: Zap,
+      title: 'Instant Generation',
+      description: 'Get personalized perspectives in seconds'
+    }
   ];
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <LinearGradient
-        colors={['#BB1919', '#1E3A8A']}
+        colors={['#BB1919', '#8B0000', '#1E3A8A']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={styles.header}
       >
         <View style={styles.headerContent}>
-          <Sparkles size={40} color="#fff" />
+          <View style={styles.logoContainer}>
+            <Sparkles size={48} color="#fff" />
+            <View style={styles.sparkleAccent}>
+              <Sparkles size={24} color="#FFD700" />
+            </View>
+          </View>
           <Text style={styles.headerTitle}>AI News Perspectives</Text>
           <Text style={styles.headerSubtitle}>
-            Discover how famous minds would cover today's news
+            Experience today's news through the minds of history's greatest thinkers
           </Text>
         </View>
       </LinearGradient>
@@ -158,31 +191,38 @@ export default function HomeScreen() {
       <View style={styles.content}>
         {error && (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorTitle}>Configuration Error</Text>
+            <Text style={styles.errorTitle}>⚠️ Configuration Required</Text>
             <Text style={styles.errorText}>{error}</Text>
-            <Text style={styles.errorInstructions}>
-              To fix this issue:{'\n'}
-              1. Get a Groq API key from https://console.groq.com{'\n'}
-              2. Set it as an environment variable: GROQ_API_KEY=your_key_here{'\n'}
-              3. Restart the app
-            </Text>
+            <View style={styles.errorInstructionsContainer}>
+              <Text style={styles.errorInstructionsTitle}>Quick Setup:</Text>
+              <Text style={styles.errorInstructions}>
+                1. Visit https://console.groq.com{'\n'}
+                2. Get your API key{'\n'}
+                3. Set GROQ_API_KEY environment variable{'\n'}
+                4. Restart the application
+              </Text>
+            </View>
           </View>
         )}
 
         <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>Choose Your Perspective</Text>
-          <Text style={styles.sectionSubtitle}>
-            Enter a famous person's name to see today's news through their unique lens
-          </Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Choose Your Perspective</Text>
+            <Text style={styles.sectionSubtitle}>
+              Enter any famous person's name to see today's news through their unique worldview
+            </Text>
+          </View>
 
           <View style={styles.inputContainer}>
-            <User size={20} color="#666" style={styles.inputIcon} />
+            <View style={styles.inputIconContainer}>
+              <User size={22} color="#BB1919" />
+            </View>
             <TextInput
               style={styles.input}
-              placeholder="e.g., Albert Einstein, Oprah Winfrey..."
+              placeholder="e.g., Albert Einstein, Frida Kahlo, Leonardo da Vinci..."
               value={personName}
               onChangeText={setPersonName}
-              placeholderTextColor="#999"
+              placeholderTextColor="#9CA3AF"
               editable={!isLoading}
             />
           </View>
@@ -192,24 +232,55 @@ export default function HomeScreen() {
             onPress={handleSubmit}
             disabled={isLoading}
           >
-            <Search size={20} color="#fff" />
-            <Text style={styles.submitButtonText}>
-              {isLoading ? 'Generating Perspectives...' : 'Generate News Perspectives'}
-            </Text>
+            <LinearGradient
+              colors={isLoading ? ['#9CA3AF', '#6B7280'] : ['#BB1919', '#8B0000']}
+              style={styles.submitButtonGradient}
+            >
+              {isLoading ? (
+                <View style={styles.loadingContainer}>
+                  <View style={styles.loadingSpinner} />
+                  <Text style={styles.submitButtonText}>Generating Perspectives...</Text>
+                </View>
+              ) : (
+                <>
+                  <Search size={20} color="#fff" />
+                  <Text style={styles.submitButtonText}>Generate AI Perspectives</Text>
+                </>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.featuresSection}>
+          <Text style={styles.featuresTitle}>Why AI Perspectives?</Text>
+          <View style={styles.featuresGrid}>
+            {features.map((feature, index) => (
+              <View key={index} style={styles.featureCard}>
+                <View style={styles.featureIconContainer}>
+                  <feature.icon size={28} color="#BB1919" />
+                </View>
+                <Text style={styles.featureTitle}>{feature.title}</Text>
+                <Text style={styles.featureDescription}>{feature.description}</Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         <View style={styles.suggestionsSection}>
           <Text style={styles.suggestionsTitle}>Popular Perspectives</Text>
+          <Text style={styles.suggestionsSubtitle}>
+            Tap any name to instantly generate their unique take on today's news
+          </Text>
           <View style={styles.suggestionsGrid}>
             {famousPersons.map((person, index) => (
               <TouchableOpacity
                 key={index}
                 style={styles.suggestionChip}
-                onPress={() => setPersonName(person)}
+                onPress={() => setPersonName(person.name)}
                 disabled={isLoading}
               >
-                <Text style={styles.suggestionText}>{person}</Text>
+                <Text style={styles.suggestionName}>{person.name}</Text>
+                <Text style={styles.suggestionField}>{person.field}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -217,36 +288,47 @@ export default function HomeScreen() {
 
         <View style={styles.infoSection}>
           <Text style={styles.infoTitle}>How It Works</Text>
-          <View style={styles.infoStep}>
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNumberText}>1</Text>
+          <View style={styles.stepsContainer}>
+            <View style={styles.infoStep}>
+              <View style={styles.stepNumber}>
+                <Text style={styles.stepNumberText}>1</Text>
+              </View>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>Choose Your Thinker</Text>
+                <Text style={styles.stepText}>
+                  Select any historical figure, celebrity, or thought leader
+                </Text>
+              </View>
             </View>
-            <Text style={styles.stepText}>
-              We identify your chosen famous person and their unique perspective
-            </Text>
-          </View>
-          <View style={styles.infoStep}>
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNumberText}>2</Text>
+            <View style={styles.infoStep}>
+              <View style={styles.stepNumber}>
+                <Text style={styles.stepNumberText}>2</Text>
+              </View>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>AI Analysis</Text>
+                <Text style={styles.stepText}>
+                  Our AI analyzes their worldview, writing style, and philosophy
+                </Text>
+              </View>
             </View>
-            <Text style={styles.stepText}>
-              We fetch today's top 10 news stories from trusted sources
-            </Text>
-          </View>
-          <View style={styles.infoStep}>
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNumberText}>3</Text>
+            <View style={styles.infoStep}>
+              <View style={styles.stepNumber}>
+                <Text style={styles.stepNumberText}>3</Text>
+              </View>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>Unique Perspectives</Text>
+                <Text style={styles.stepText}>
+                  Get articles and podcasts written in their distinctive voice
+                </Text>
+              </View>
             </View>
-            <Text style={styles.stepText}>
-              AI transforms each story into their unique voice and perspective
-            </Text>
           </View>
         </View>
 
         <View style={styles.disclaimer}>
           <Text style={styles.disclaimerText}>
-            All AI-generated content is clearly labeled and based on factual news sources. 
-            Original articles are always provided for comparison.
+            🤖 All AI-generated content is clearly labeled and based on factual news sources. 
+            Original articles are always provided for comparison and verification.
           </Text>
         </View>
       </View>
@@ -257,213 +339,330 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#F8FAFC',
   },
   header: {
     paddingTop: 60,
-    paddingBottom: 40,
-    paddingHorizontal: 20,
+    paddingBottom: 50,
+    paddingHorizontal: 24,
+    position: 'relative',
   },
   headerContent: {
     alignItems: 'center',
   },
+  logoContainer: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  sparkleAccent: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+  },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontWeight: '800',
     color: '#fff',
-    marginTop: 12,
     textAlign: 'center',
+    marginBottom: 12,
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 17,
     color: '#fff',
-    opacity: 0.9,
+    opacity: 0.95,
     textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 22,
+    lineHeight: 24,
+    maxWidth: width - 48,
   },
   content: {
-    padding: 20,
+    padding: 24,
   },
   errorContainer: {
-    backgroundColor: '#fee',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#dc3545',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#FECACA',
   },
   errorTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#dc3545',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#DC2626',
     marginBottom: 8,
   },
   errorText: {
+    fontSize: 15,
+    color: '#B91C1C',
+    marginBottom: 16,
+    lineHeight: 22,
+  },
+  errorInstructionsContainer: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 12,
+    padding: 16,
+  },
+  errorInstructionsTitle: {
     fontSize: 14,
-    color: '#721c24',
-    marginBottom: 12,
-    lineHeight: 20,
+    fontWeight: '600',
+    color: '#991B1B',
+    marginBottom: 8,
   },
   errorInstructions: {
     fontSize: 13,
-    color: '#721c24',
-    lineHeight: 18,
+    color: '#991B1B',
+    lineHeight: 20,
     fontFamily: 'monospace',
-    backgroundColor: '#f8d7da',
-    padding: 8,
-    borderRadius: 4,
   },
   formSection: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 20,
+    padding: 28,
     marginBottom: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  sectionHeader: {
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#1F2937',
     marginBottom: 8,
+    letterSpacing: -0.3,
   },
   sectionSubtitle: {
     fontSize: 16,
-    color: '#666',
-    marginBottom: 24,
-    lineHeight: 22,
+    color: '#6B7280',
+    lineHeight: 24,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    paddingHorizontal: 20,
     paddingVertical: 4,
-    marginBottom: 20,
+    marginBottom: 24,
     borderWidth: 2,
-    borderColor: '#e9ecef',
+    borderColor: '#E5E7EB',
   },
-  inputIcon: {
+  inputIconContainer: {
     marginRight: 12,
+    padding: 4,
   },
   input: {
     flex: 1,
     fontSize: 16,
-    paddingVertical: 16,
-    color: '#1a1a1a',
+    paddingVertical: 18,
+    color: '#1F2937',
+    fontWeight: '500',
   },
   submitButton: {
-    backgroundColor: '#BB1919',
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  submitButtonDisabled: {
+    opacity: 0.7,
+  },
+  submitButtonGradient: {
+    paddingVertical: 18,
     paddingHorizontal: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  submitButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
   submitButtonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     marginLeft: 8,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  loadingSpinner: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#fff',
+    borderTopColor: 'transparent',
+    marginRight: 8,
+  },
+  featuresSection: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 28,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  featuresTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  featuresGrid: {
+    gap: 20,
+  },
+  featureCard: {
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+  },
+  featureIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  featureTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  featureDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   suggestionsSection: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 20,
+    padding: 28,
     marginBottom: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
   },
   suggestionsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    marginBottom: 16,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  suggestionsSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    marginBottom: 20,
+    lineHeight: 22,
   },
   suggestionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 12,
   },
   suggestionChip: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    marginBottom: 8,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    minWidth: (width - 96) / 2,
   },
-  suggestionText: {
-    fontSize: 14,
-    color: '#1E3A8A',
+  suggestionName: {
+    fontSize: 15,
+    color: '#1F2937',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  suggestionField: {
+    fontSize: 12,
+    color: '#BB1919',
     fontWeight: '500',
   },
   infoSection: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 20,
+    padding: 28,
     marginBottom: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
   },
   infoTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    marginBottom: 16,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  stepsContainer: {
+    gap: 24,
   },
   infoStep: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 16,
   },
   stepNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#BB1919',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 16,
+    shadowColor: '#BB1919',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   stepNumberText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  stepText: {
-    flex: 1,
     fontSize: 16,
-    color: '#666',
-    lineHeight: 22,
+    fontWeight: '800',
+  },
+  stepContent: {
+    flex: 1,
     paddingTop: 2,
   },
+  stepTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  stepText: {
+    fontSize: 15,
+    color: '#6B7280',
+    lineHeight: 22,
+  },
   disclaimer: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#BB1919',
+    backgroundColor: '#F0F9FF',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
   },
   disclaimerText: {
     fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-    fontStyle: 'italic',
+    color: '#0369A1',
+    lineHeight: 22,
+    textAlign: 'center',
   },
 });
