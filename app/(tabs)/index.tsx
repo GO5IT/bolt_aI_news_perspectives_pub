@@ -11,6 +11,7 @@ const groqApiKey = Constants?.expoConfig?.extra?.GROQ_API_KEY ?? '';
 async function groqResponse(
   concatenatedTriviaQuizUser: string, // Explicitly type as string
   aiModel: string,
+  search_settings: string,
   temperature: number,
   maxCompletionTokens: number,
   topP: number,
@@ -18,7 +19,7 @@ async function groqResponse(
   stream: boolean
 ) {
   const concatenatedTriviaQuizAssistant = `
-    You are a creative writer API capable to generating a JSON data about articles about real news from the BBC website. The articles should be created as if it was written by the (historical) person specified by the user. The user input includes the name of the person and a list of news websites. Your output should be a list, containing objects about the generated articles. Respond ONLY with valid JSON. Use double quotes for all keys and string values.
+    You are a creative writer API capable to generating a JSON data about three articles about real news from the BBC website (https://www.bbc.com/). The articles should be created as if they were written by the (historical) person specified by the user. The user input includes the name of the person and a list of news websites. Your output should be a list, containing objects about the generated articles. Respond ONLY with valid JSON. Use double quotes for all keys and string values.
     [  
       {
           "Timestamp": "2025-05-09 13:22 (local time and date when the source news was published)",
@@ -75,20 +76,29 @@ export default function HomeScreen() {
     const topP = 1;
     const stop = null;
     const stream = false;
-    const newsUrls = [
-      'https://www.bbc.com/news/articles/crk6elpx4gpo',
-      'https://www.bbc.com/news/articles/c994v28mezlo',
-      'https://www.bbc.com/sport/football/live/cp90zrl01n2t',
-    ];
+    // const newsUrls = [
+    //   'https://www.bbc.com/news/articles/crk6elpx4gpo',
+    //   'https://www.bbc.com/news/articles/c994v28mezlo',
+    //   'https://www.bbc.com/sport/football/live/cp90zrl01n2t',
+    // ];
     
     // Explicitly type as string
-    const concatenatedTriviaQuizUser: string = `Write an article about the real news found at this list: ${newsUrls} as if it is written by ${personName.trim()}`;
-    const finalAiModel = 'llama-3.3-70b-versatile';
+    // const concatenatedTriviaQuizUser: string = `Write an article about the real news found at this list: ${newsUrls} as if it is written by ${personName.trim()}`;
+    const concatenatedTriviaQuizUser: string = `Write an article about the real news found within the domain of https://www.bbc.com/ as if it is written by ${personName.trim()}`;
+    // const finalAiModel = 'llama-3.3-70b-versatile';
+    const finalAiModel = "compound-beta-mini";
+
+    const search_settings: string = `
+      "search_settings": {
+        "include_domains": ["https://www.bbc.com/"]
+      }
+    `;
 
     try {
       const groqOutput = await groqResponse(
         concatenatedTriviaQuizUser,
         finalAiModel,
+        search_settings,
         temperature,
         maxCompletionTokens,
         topP,
