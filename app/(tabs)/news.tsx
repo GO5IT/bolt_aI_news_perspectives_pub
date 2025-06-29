@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, Dimensions, Linking } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Clock, User, ExternalLink, Sparkles, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react-native';
+import { Clock, User, ExternalLink, Sparkles, ArrowLeft, CircleCheck as CheckCircle, CircleAlert as AlertCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
