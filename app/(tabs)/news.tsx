@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, Dimensions, Linking } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Clock, User, ExternalLink, Sparkles, ArrowLeft, CircleCheck as CheckCircle, CircleAlert as AlertCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,59 +28,106 @@ interface NewsArticle {
   isVerified?: boolean;
 }
 
+// Helper function to extract JSON from potentially malformed AI response
+function extractAndParseJSON(aiText: string): any[] {
+  try {
+    // Clean up the response text
+    let cleanText = aiText.trim();
+    
+    // Remove markdown code blocks if present
+    cleanText = cleanText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    
+    // Remove control characters and non-printable characters
+    cleanText = cleanText.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+    
+    // Find the first opening bracket/brace and last closing bracket/brace
+    const firstArrayStart = cleanText.indexOf('[');
+    const firstObjectStart = cleanText.indexOf('{');
+    const lastArrayEnd = cleanText.lastIndexOf(']');
+    const lastObjectEnd = cleanText.lastIndexOf('}');
+    
+    let jsonStart = -1;
+    let jsonEnd = -1;
+    
+    // Determine if we're dealing with an array or object
+    if (firstArrayStart !== -1 && (firstObjectStart === -1 || firstArrayStart < firstObjectStart)) {
+      // Array format
+      jsonStart = firstArrayStart;
+      jsonEnd = lastArrayEnd;
+    } else if (firstObjectStart !== -1) {
+      // Object format (wrap in array)
+      jsonStart = firstObjectStart;
+      jsonEnd = lastObjectEnd;
+    }
+    
+    if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
+      throw new Error('No valid JSON structure found');
+    }
+    
+    // Extract the JSON substring
+    let jsonString = cleanText.substring(jsonStart, jsonEnd + 1);
+    
+    // Additional cleanup for common issues
+    jsonString = jsonString
+      .replace(/,\s*}/g, '}') // Remove trailing commas before closing braces
+      .replace(/,\s*]/g, ']') // Remove trailing commas before closing brackets
+      .replace(/\n/g, ' ') // Replace newlines with spaces
+      .replace(/\s+/g, ' '); // Normalize whitespace
+    
+    // Parse the JSON
+    const parsed = JSON.parse(jsonString);
+    
+    // Ensure we return an array
+    return Array.isArray(parsed) ? parsed : [parsed];
+    
+  } catch (error) {
+    console.error('JSON extraction/parsing failed:', error);
+    
+    // Final fallback: try to extract content using regex patterns
+    try {
+      const articlePattern = /"Generated article":\s*"([^"]+)"/g;
+      const matches = [];
+      let match;
+      
+      while ((match = articlePattern.exec(aiText)) !== null) {
+        matches.push({
+          "Generated article": match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"')
+        });
+      }
+      
+      if (matches.length > 0) {
+        return matches;
+      }
+    } catch (regexError) {
+      console.error('Regex fallback failed:', regexError);
+    }
+    
+    // Ultimate fallback: treat entire text as single article
+    return [{ "Generated article": aiText }];
+  }
+}
+
 export default function NewsScreen() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState('');
   const [realNewsData, setRealNewsData] = useState<any[]>([]);
+  const [processingComplete, setProcessingComplete] = useState(false);
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  // Parse AI response or fallback to mock data
-  useEffect(() => {
-    if (params.person) setSelectedPerson(params.person as string);
-
-    // Parse real news data if available
-    if (params.realNewsData) {
-      try {
-        const parsedRealNews = JSON.parse(params.realNewsData as string);
-        setRealNewsData(parsedRealNews);
-      } catch (e) {
-        console.error('Error parsing real news data:', e);
-      }
-    }
-
-    if (params.aiResponse) {
-      let aiArticles: NewsArticle[] = [];
-      let aiText = String(params.aiResponse).trim();
-
-      try {
-        // Clean up the JSON response - remove any markdown formatting
-        aiText = aiText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        
-        // Remove control characters (U+0000 through U+001F) that cause JSON parsing errors
-        aiText = aiText.replace(/[\u0000-\u001F]/g, '');
-        
-        if (aiText.startsWith('[') || aiText.startsWith('{')) {
-          const parsed = JSON.parse(aiText);
-          aiArticles = Array.isArray(parsed) ? parsed : [parsed];
-        } else {
-          // If it's not JSON, treat as plain text
-          aiArticles = [{ "Generated article": aiText }];
-        }
-      } catch (e) {
-        console.error('JSON parsing error:', e);
-        // If parsing fails, treat as plain text
-        aiArticles = [{ "Generated article": aiText }];
-      }
-
+  // Memoize the processing function to prevent infinite re-renders
+  const processAIResponse = useCallback((aiResponse: string, person: string, newsData: any[]) => {
+    try {
+      const aiArticles = extractAndParseJSON(aiResponse);
+      
       // Map AI articles to display format with real news verification
       const mapped = aiArticles.map((article, idx) => {
         // Extract the actual article content
         const generatedContent = article["Generated article"] || '';
         
         // Get corresponding real news data for verification
-        const realNewsItem = realNewsData[idx] || {};
+        const realNewsItem = newsData[idx] || {};
         
         // Create a proper title from the AI response or use real news title
         let title = article["Original title"] || realNewsItem.title || '';
@@ -105,7 +152,7 @@ export default function NewsScreen() {
         
         return {
           id: String(idx + 1),
-          title: title || `${selectedPerson}'s Perspective on Current Events`,
+          title: title || `${person}'s Perspective on Current Events`,
           originalTitle: realNewsItem.title || '',
           summary: summary || generatedContent.substring(0, 200) + '...',
           originalSummary: realNewsItem.summary || '',
@@ -116,15 +163,65 @@ export default function NewsScreen() {
           aiGenerated: true,
           isVerified: !!(sourceUrl && sourceUrl.startsWith('http')), // Verify if we have a real URL
           "Generated article": generatedContent,
-          "Input person name": selectedPerson,
+          "Input person name": person,
           "Source URL": sourceUrl,
           "Original title": realNewsItem.title || '',
         };
       });
 
-      setArticles(mapped);
+      return mapped;
+    } catch (error) {
+      console.error('Error processing AI response:', error);
+      // Return a fallback article
+      return [{
+        id: '1',
+        title: `${person}'s Perspective on Current Events`,
+        summary: 'Unable to process the AI response properly. Please try again.',
+        imageUrl: getRandomNewsImage(0),
+        publishedAt: 'Today',
+        originalUrl: '',
+        source: 'AI Generated',
+        aiGenerated: true,
+        isVerified: false,
+        "Generated article": 'Unable to process the AI response properly. Please try again.',
+        "Input person name": person,
+      }];
     }
-  }, [params.aiResponse, params.person, params.realNewsData, selectedPerson, realNewsData]);
+  }, []);
+
+  // Parse AI response or fallback to mock data
+  useEffect(() => {
+    // Prevent processing if already complete
+    if (processingComplete) return;
+
+    let person = '';
+    let newsData: any[] = [];
+
+    // Set person name
+    if (params.person) {
+      person = params.person as string;
+      setSelectedPerson(person);
+    }
+
+    // Parse real news data if available
+    if (params.realNewsData) {
+      try {
+        const parsedRealNews = JSON.parse(params.realNewsData as string);
+        newsData = parsedRealNews;
+        setRealNewsData(parsedRealNews);
+      } catch (e) {
+        console.error('Error parsing real news data:', e);
+        newsData = [];
+      }
+    }
+
+    // Process AI response
+    if (params.aiResponse && person) {
+      const processedArticles = processAIResponse(params.aiResponse as string, person, newsData);
+      setArticles(processedArticles);
+      setProcessingComplete(true);
+    }
+  }, [params.aiResponse, params.person, params.realNewsData, processAIResponse, processingComplete]);
 
   // Function to get varied news images
   const getRandomNewsImage = (index: number) => {
