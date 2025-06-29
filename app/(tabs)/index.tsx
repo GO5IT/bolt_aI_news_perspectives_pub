@@ -14,7 +14,7 @@ const groqApiKey = Constants?.expoConfig?.extra?.GROQ_API_KEY ?? '';
 async function groqResponse(
   concatenatedTriviaQuizUser: string, // Explicitly type as string
   aiModel: string,
-  search_settings: string,
+  search_settings: object,
   temperature: number,
   maxCompletionTokens: number,
   topP: number,
@@ -27,7 +27,7 @@ async function groqResponse(
   }
 
   const concatenatedTriviaQuizAssistant = `
-    You are a creative writer API capable to generating a JSON data about three articles about real news from the BBC website (https://www.bbc.com/). The articles should be created as if they were written by the (historical) person specified by the user. The user input includes the name of the person and a list of news websites. Your output should be a list, containing objects about the generated articles. Respond ONLY with valid JSON. Use double quotes for all keys and string values.
+    You are a creative writer API capable to generating a JSON data about three articles about real news from the BBC website (https://www.bbc.com/). The articles should be created as if they were written by the (historical) person specified by the user. The user input includes the name of the person and a list of news websites. Your output should be a list, containing objects about the generated articles. Respond ONLY with valid JSON part (no other texts). Use double quotes for all keys and string values.
     [  
       {
           "Timestamp": "2025-01-27 13:22 (local time and date when the source news was published)",
@@ -51,6 +51,7 @@ async function groqResponse(
     },
     body: JSON.stringify({
       model: aiModel,
+      search_settings: search_settings, 
       messages: messagesFinal,
       temperature,
       max_completion_tokens: maxCompletionTokens,
@@ -109,11 +110,9 @@ export default function HomeScreen() {
     // const finalAiModel = 'llama-3.3-70b-versatile';
     const finalAiModel = "compound-beta-mini";
 
-    const search_settings: string = `
-      "search_settings": {
-        "include_domains": ["https://www.bbc.com/"]
-      }
-    `;
+    const search_settings = {
+      include_domains: ["https://www.bbc.com/"]
+    };
 
     try {
       const groqOutput = await groqResponse(
