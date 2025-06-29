@@ -29,14 +29,14 @@ interface NewsArticle {
 export default function NewsScreen() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedPerson, setSelectedPerson] = useState('');
   const router = useRouter();
   const params = useLocalSearchParams();
+  
+  // Derive selectedPerson directly from params instead of using state
+  const selectedPerson = Array.isArray(params.person) ? params.person.join(', ') : (params.person || '');
 
   // Parse AI response or fallback to mock data
   useEffect(() => {
-    if (params.person) setSelectedPerson(params.person as string);
-
     if (params.aiResponse) {
       let aiArticles: NewsArticle[] = [];
       let aiText = String(params.aiResponse).trim();
@@ -67,11 +67,11 @@ export default function NewsScreen() {
         aiGenerated: true,
         "Input person name": Array.isArray(a["Input person name"])
           ? a["Input person name"].join(', ')
-          : (a["Input person name"] || (Array.isArray(params.person) ? params.person.join(', ') : params.person) || ''),
+          : (a["Input person name"] || selectedPerson || ''),
       }));
       setArticles(mapped);
     }
-  }, [params.aiResponse, params.person]);
+  }, [params.aiResponse, selectedPerson]);
 
   useEffect(() => {
     // Only fetch real news if there is NO aiResponse
