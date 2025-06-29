@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
-// Import the API key from environment variables and check if it exists
-const rapidapi_key = Constants?.expoConfig?.extra?.RAPIDAPI_KEY ?? '';
+
+// Import the API key from environment variables using the proper Expo method
+const rapidapi_key = Constants.expoConfig?.extra?.RAPIDAPI_KEY || process.env.EXPO_PUBLIC_RAPIDAPI_KEY || '';
 
 export async function fetchNewsArticles(topic: string, section: string, limit: number, country_code: string, lang: string) {
     const url = `https://real-time-news-data.p.rapidapi.com/topic-news-by-section?topic=${topic}&section=${section}&limit=${limit}&country=${country_code}&lang=${lang}`;

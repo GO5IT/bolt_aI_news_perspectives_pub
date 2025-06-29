@@ -7,13 +7,14 @@ import Constants from 'expo-constants';
 
 const { width } = Dimensions.get('window');
 
-// Import the API key from environment variables and check if it exists
-const groqApiKey = Constants?.expoConfig?.extra?.GROQ_API_KEY ?? '';
+// Import the API key from environment variables using the proper Expo method
+const groqApiKey = Constants.expoConfig?.extra?.GROQ_API_KEY || process.env.EXPO_PUBLIC_GROQ_API_KEY || '';
 
 console.log('Environment check:', {
   hasGroqKey: !!groqApiKey,
   keyLength: groqApiKey?.length || 0,
-  constants: Constants?.expoConfig?.extra
+  expoConfigExtra: Constants.expoConfig?.extra,
+  processEnv: process.env.EXPO_PUBLIC_GROQ_API_KEY ? 'Found EXPO_PUBLIC_GROQ_API_KEY' : 'No EXPO_PUBLIC_GROQ_API_KEY'
 });
 
 // Remove finalLangCodeId parameter
@@ -89,7 +90,7 @@ export default function HomeScreen() {
 
     // Check if API key is available before making the request
     if (!groqApiKey || groqApiKey.trim() === '') {
-      setError('GROQ_API_KEY is not configured. Please check your .env file and restart the development server.');
+      setError('GROQ_API_KEY is not configured. Please add it to your .env file as either GROQ_API_KEY or EXPO_PUBLIC_GROQ_API_KEY and restart the development server.');
       return;
     }
 
@@ -203,7 +204,7 @@ export default function HomeScreen() {
               <Text style={styles.errorInstructionsTitle}>Quick Setup:</Text>
               <Text style={styles.errorInstructions}>
                 1. Create a .env file in your project root{'\n'}
-                2. Add: GROQ_API_KEY=your_api_key_here{'\n'}
+                2. Add: EXPO_PUBLIC_GROQ_API_KEY=your_api_key_here{'\n'}
                 3. Get your API key from https://console.groq.com{'\n'}
                 4. Restart the development server (npm run dev)
               </Text>
@@ -220,7 +221,7 @@ export default function HomeScreen() {
             <View style={styles.setupStepsContainer}>
               <Text style={styles.setupStep}>1. Visit https://console.groq.com</Text>
               <Text style={styles.setupStep}>2. Create an account and get your API key</Text>
-              <Text style={styles.setupStep}>3. Add GROQ_API_KEY=your_key to your .env file</Text>
+              <Text style={styles.setupStep}>3. Add EXPO_PUBLIC_GROQ_API_KEY=your_key to your .env file</Text>
               <Text style={styles.setupStep}>4. Restart the development server</Text>
             </View>
           </View>
