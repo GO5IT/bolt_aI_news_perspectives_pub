@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 const rapidapi_key = Constants?.expoConfig?.extra?.RAPIDAPI_KEY ?? '';
 
 export async function fetchNewsArticles(topic: string, section: string, limit: number, country_code: string, lang: string) {
-    const url = `https://real-time-news-data.p.rapidapi.com/topic-news-by-section?topic=${topic}&section=${section}&limit=${limit}&country=${country_code}&lang=${lang}`;
+    const url = `https://real-time-news-data.p.rapidapi.com/top-headlines?limit=${limit}&country=${country_code}&lang=${lang}`;
     const options = {
         method: 'GET',
         headers: {
