@@ -4,8 +4,7 @@ import { useRouter } from 'expo-router';
 import { Search, Sparkles, User, Brain, Zap, Globe } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
-import { } from 'newsAPI';
-
+import { fetchNewsArticles } from 'newsAPI';
 const { width } = Dimensions.get('window');
 
 // Import the API key from environment variables and check if it exists
