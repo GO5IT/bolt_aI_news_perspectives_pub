@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import { Search, Sparkles, User, Brain, Zap, Globe } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
-import { fetchNewsArticles } from './newsAPI';
 
 const { width } = Dimensions.get('window');
 
@@ -182,38 +181,17 @@ async function groqResponse(
     stream
   };
 
-  // Add web search for models that support it
-  if (aiModel.includes('llama') || aiModel.includes('mixtral')) {
-    requestBody.tools = [
-      {
-        type: "function",
-        function: {
-          name: "web_search",
-          description: "Search the web for current information",
-          parameters: {
-            type: "object",
-            properties: {
-              query: {
-                type: "string",
-                description: "Search query"
-              }
-            },
-            required: ["query"]
-          }
-        }
-      }
-    ];
-    //requestBody.tool_choice = "auto";
-  }
-
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${groqApiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestBody)
-  });
+  // Retry logic for handling 503 errors
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${groqApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -760,7 +738,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 24,
   },
-    mockDataNotice: {
+  mockDataNotice: {
     backgroundColor: '#FEF3C7',
     borderRadius: 16,
     padding: 20,
@@ -933,7 +911,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 16,
   },
-    featureTitle: {
+  featureTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1F2937',
