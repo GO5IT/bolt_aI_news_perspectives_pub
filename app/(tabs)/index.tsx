@@ -4,13 +4,18 @@ import { useRouter } from 'expo-router';
 import { Search, Sparkles, User, Brain, Zap, Globe } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
-import { fetchNewsArticles } from 'newsAPI';
+
 const { width } = Dimensions.get('window');
+
+const topic = '';
+const section = 'TECHNOLOGY';
+const limit = 10;
+const country_code = 'US';
+const lang = 'en';
+const fetchednews = fetchNewsArticles(topic, section, limit, country_code, lang)
 
 // Import the API key from environment variables and check if it exists
 const groqApiKey = Constants?.expoConfig?.extra?.GROQ_API_KEY ?? '';
-
-const fetchednews = fetchNewsArticles(topic: string, section: string, limit: number, country_code: string, lang: string)
 
 async function groqResponse(
   concatenatedTriviaQuizUser: string,
