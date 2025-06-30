@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
 
 const { width } = Dimensions.get('window');
-const fetchednews = function fetchNewsArticles(10, 'US', 'en'); 
+const fetchednews = fetchNewsArticles(10, 'US', 'en'); 
 
 // Import the API key from environment variables and check if it exists
 const groqApiKey = Constants?.expoConfig?.extra?.GROQ_API_KEY ?? '';
