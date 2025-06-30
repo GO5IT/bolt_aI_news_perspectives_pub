@@ -10,6 +10,8 @@ const { width } = Dimensions.get('window');
 // Import the API key from environment variables and check if it exists
 const groqApiKey = Constants?.expoConfig?.extra?.GROQ_API_KEY ?? '';
 
+const fetchednews = fetchNewsArticles(topic: string, section: string, limit: number, country_code: string, lang: string)
+
 async function groqResponse(
   concatenatedTriviaQuizUser: string,
   aiModel: string,
