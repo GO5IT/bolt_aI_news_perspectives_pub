@@ -33,7 +33,7 @@ async function groqResponse(
     2. Select exactly 3 different current news stories from BBC
     3. For each story, write an article as if it were written by the specified famous person
     4. Each article should be substantial (at least 300-500 words) and capture the person's unique voice, perspective, and writing style
-    5. Include the actual BBC source URL for each story
+    5. Include the actual source URL for each story
 
     Your output should be a JSON array with exactly 3 objects. Respond ONLY with valid JSON (no other text). Use double quotes for all keys and string values.
 
